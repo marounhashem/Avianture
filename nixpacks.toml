@@ -5,4 +5,7 @@
 nixPkgs = ["nodejs_22", "npm-10_x"]
 
 [phases.install]
-cmds = ["npm ci --no-audit --no-fund"]
+# Force-include devDependencies — Next.js production build needs @tailwindcss/postcss,
+# typescript, prisma CLI, etc., which live in devDependencies. NODE_ENV=production in
+# Railway would otherwise prune them on some install paths.
+cmds = ["npm ci --include=dev --no-audit --no-fund"]
