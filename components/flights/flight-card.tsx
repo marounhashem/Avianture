@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { StatusChip } from "@/components/shared/status-chip";
 import type { Flight, HandlerRequest, ServiceRequest } from "@prisma/client";
 
 type FlightWithStats = Flight & {
