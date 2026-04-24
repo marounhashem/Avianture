@@ -1,13 +1,179 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../lib/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Role {
+  OPERATOR
+  CREW
+  HANDLER
+}
+
+enum CrewRole {
+  PIC
+  FO
+  CABIN
+}
+
+enum FlightStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceType {
+  FUEL
+  GPU
+  CATERING
+  TRANSPORT
+  PARKING
+  CUSTOMS
+}
+
+enum ServiceStatus {
+  PENDING
+  ACKNOWLEDGED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Operator {
+  id        String       @id @default(cuid())
+  name      String
+  createdAt DateTime     @default(now())
+  users     User[]
+  flights   Flight[]
+  crew      CrewMember[]
+  handlers  Handler[]
+}
+
+model User {
+  id            String             @id @default(cuid())
+  email         String             @unique
+  passwordHash  String
+  name          String
+  role          Role
+  operatorId    String?
+  operator      Operator?          @relation(fields: [operatorId], references: [id])
+  handlerId     String?
+  handler       Handler?           @relation(fields: [handlerId], references: [id])
+  crewMemberId  String?            @unique
+  crewMember    CrewMember?        @relation(fields: [crewMemberId], references: [id])
+  statusChanges ServiceStatusLog[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([operatorId])
+  @@index([handlerId])
+}
+
+model Flight {
+  id              String           @id @default(cuid())
+  operatorId      String
+  operator        Operator         @relation(fields: [operatorId], references: [id])
+  tailNumber      String
+  aircraftType    String
+  originIcao      String
+  destIcao        String
+  etdUtc          DateTime
+  etaUtc          DateTime
+  pax             Int
+  purpose         String?
+  status          FlightStatus     @default(DRAFT)
+  crewAssignments CrewAssignment[]
+  handlerRequests HandlerRequest[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([operatorId])
+  @@index([etdUtc])
+}
+
+model CrewMember {
+  id          String           @id @default(cuid())
+  operatorId  String
+  operator    Operator         @relation(fields: [operatorId], references: [id])
+  name        String
+  role        CrewRole
+  user        User?
+  assignments CrewAssignment[]
+  createdAt   DateTime         @default(now())
+
+  @@index([operatorId])
+}
+
+model CrewAssignment {
+  id           String     @id @default(cuid())
+  flightId     String
+  flight       Flight     @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  crewMemberId String
+  crewMember   CrewMember @relation(fields: [crewMemberId], references: [id])
+  appointedAt  DateTime   @default(now())
+
+  @@unique([flightId, crewMemberId])
+  @@index([flightId])
+}
+
+model Handler {
+  id         String           @id @default(cuid())
+  operatorId String
+  operator   Operator         @relation(fields: [operatorId], references: [id])
+  name       String
+  company    String?
+  email      String?
+  users      User[]
+  requests   HandlerRequest[]
+  createdAt  DateTime         @default(now())
+
+  @@index([operatorId])
+}
+
+model HandlerRequest {
+  id               String           @id @default(cuid())
+  flightId         String
+  flight           Flight           @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  handlerId        String
+  handler          Handler          @relation(fields: [handlerId], references: [id])
+  airport          String
+  inviteToken      String           @unique
+  inviteExpiresAt  DateTime
+  inviteAcceptedAt DateTime?
+  services         ServiceRequest[]
+  createdAt        DateTime         @default(now())
+
+  @@index([flightId])
+  @@index([handlerId])
+  @@index([inviteToken])
+}
+
+model ServiceRequest {
+  id               String             @id @default(cuid())
+  handlerRequestId String
+  handlerRequest   HandlerRequest     @relation(fields: [handlerRequestId], references: [id], onDelete: Cascade)
+  type             ServiceType
+  status           ServiceStatus      @default(PENDING)
+  note             String?
+  statusLogs       ServiceStatusLog[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@unique([handlerRequestId, type])
+  @@index([handlerRequestId])
+}
+
+model ServiceStatusLog {
+  id                String         @id @default(cuid())
+  serviceRequestId  String
+  serviceRequest    ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  fromStatus        ServiceStatus
+  toStatus          ServiceStatus
+  changedAt         DateTime       @default(now())
+  changedByUserId   String
+  changedBy         User           @relation(fields: [changedByUserId], references: [id])
+
+  @@index([serviceRequestId])
 }
