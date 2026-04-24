@@ -1,0 +1,8 @@
+# Nixpacks build configuration for Railway.
+# Prisma 7 requires Node.js 20.19+, 22.12+, or 24.0+.
+# We pin to Node 22 (current LTS) to match our local dev environment.
+[phases.setup]
+nixPkgs = ["nodejs_22", "npm-10_x"]
+
+[phases.install]
+cmds = ["npm ci --no-audit --no-fund"]
