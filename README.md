@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Avianture
 
-## Getting Started
+Private aviation operations platform — flight planning, crew coordination, and handler communication.
 
-First, run the development server:
+**Slice 1 scope:** Operator Admin + Flight Record + Handler Hub (structured acknowledgment).
+
+---
+
+## Demo accounts (seeded)
+
+| Persona | Email | Password |
+|---|---|---|
+| Operator | marounhashem@gmail.com | Avianture2026! |
+| Crew (Pilot) | pilot@avianture.demo | Avianture2026! |
+| Handler (DXB) | handler.dxb@avianture.demo | Avianture2026! |
+| Handler (LCLK) | handler.lclk@avianture.demo | Avianture2026! |
+
+**Rotate `Avianture2026!` after first login in production.**
+
+---
+
+## Local development
 
 ```bash
+git clone https://github.com/marounhashem/Avianture.git
+cd Avianture
+npm install
+cp .env.example .env.local
+# Fill DATABASE_URL with your Postgres URL (see options below)
+# Fill NEXTAUTH_SECRET (generate: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
+
+# Sync schema to your DB
+npx prisma db push --accept-data-loss
+
+# Seed demo data
+npm run db:seed
+
+# Start dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000` → sign in with any demo account.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Getting a Postgres URL
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Options:
+- **Railway Postgres** (recommended): create a project, add Postgres plugin, copy the external `DATABASE_URL` into `.env.local`.
+- **Neon** (free tier): neon.tech — create a project, copy the connection string.
+- **Local install**: Postgres 16+ running on localhost:5432.
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+- `npm run dev` — Next.js dev server
+- `npm run build` — production build (runs `prisma generate` + `prisma db push` + `next build`)
+- `npm run start` — production server
+- `npm run test` — Vitest unit tests
+- `npm run db:push` — sync schema without migration history (MVP)
+- `npm run db:seed` — reset and seed
+- `npm run db:studio` — open Prisma Studio
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment (Railway)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Create Railway project → add **Postgres** plugin → `DATABASE_URL` auto-injected.
+2. Add a **web service** from this repo (`marounhashem/Avianture`).
+3. Set env vars in the web service:
+   - `NEXTAUTH_SECRET` — generate: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+   - `NEXTAUTH_URL` — set to the Railway domain after first deploy (e.g., `https://avianture-production.up.railway.app`)
+4. Railway auto-runs `npm run build` which syncs the schema.
+5. **First deploy only:** run the seed once via Railway shell: `npm run db:seed`.
 
-## Deploy on Vercel
+## Tech
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Prisma 7 · Postgres · Auth.js v5 (Credentials) · Zod · bcryptjs · Vitest
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Docs
+
+- [Decisions log](./docs/DECISIONS.md) — running record of assumptions and trade-offs.
