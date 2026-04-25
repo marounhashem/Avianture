@@ -44,3 +44,18 @@ Running log of design/implementation decisions and assumptions for Slice 1.
 
 ### Demo password: `Avianture2026!`
 **Security:** This appears in README and seed data. Rotate immediately for production. Also: the Railway token used during build attempts (`a700ec86-...`) appeared in chat history — it must be rotated.
+
+
+## 2026-04-25 — Deployment lessons (added retrospectively)
+
+### Railway: DB commands must run in preDeployCommand, never in build
+Railway's build phase has no access to internal services. `postgres.railway.internal` only resolves at deploy time. Any Prisma command that connects to the DB (`migrate deploy`, `db push`, `db seed`) fails with P1001 if placed in the build script. Use `preDeployCommand` in `railway.toml` instead.
+
+### Auth.js v5: trustHost is required on Railway
+Auth.js v5 enforces strict host checking by default and refuses requests from "untrusted" hosts. Vercel auto-trusts itself; Railway does not. Set `AUTH_TRUST_HOST=true` as a Railway env var, or add `trustHost: true` to the `NextAuth({...})` config object.
+
+### Prisma: this project uses db push, not migrations
+The schema was originally created with `prisma db push`, so there is no `prisma/migrations/` folder. `prisma migrate deploy` will fail with P3005 in production. Use `npx prisma db push --accept-data-loss` in the preDeployCommand. If we move to migrations later, generate a baseline with `prisma migrate dev --name initial_baseline` and commit the folder.
+
+### Seed-on-deploy is a footgun
+`prisma/seed.ts` does `deleteMany()` on every table. Never leave it in `preDeployCommand` permanently — it must be a one-time operation, then removed. For one-off data tasks in production, prefer `railway run` from a real terminal over chaining into the deploy pipeline.
