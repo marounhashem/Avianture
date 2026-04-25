@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { CrewSection } from "@/components/flights/crew-section";
 import { HandlerSection } from "@/components/flights/handler-section";
 import { StatusTimeline } from "@/components/flights/status-timeline";
+import { FlightHeader } from "@/components/flights/flight-header";
 import { headers } from "next/headers";
 
 export default async function FlightDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -38,17 +39,7 @@ export default async function FlightDetail({ params }: { params: Promise<{ id: s
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 md:px-8 md:py-10 space-y-6" data-flight-id={flight.id}>
-      <header className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight font-mono">{flight.tailNumber}</h1>
-            <span className="font-mono text-lg text-amber-400">{flight.originIcao} → {flight.destIcao}</span>
-          </div>
-          <p className="text-sm text-slate-400 mt-1">
-            {flight.aircraftType} · PAX {flight.pax} · ETD {new Date(flight.etdUtc).toUTCString()}
-          </p>
-        </div>
-      </header>
+      <FlightHeader flight={flight} />
 
       <CrewSection flightId={flight.id} assignments={flight.crewAssignments} availableCrew={availableCrew} />
 
