@@ -23,3 +23,9 @@ export async function requireHandler() {
   if (user.role !== "HANDLER" || !user.handlerId) redirect("/login");
   return user as typeof user & { handlerId: string };
 }
+
+export async function requireCrew() {
+  const user = await requireAuth();
+  if (user.role !== "CREW" || !user.crewMemberId) redirect("/login");
+  return user as typeof user & { crewMemberId: string };
+}
