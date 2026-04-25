@@ -16,16 +16,46 @@ export function CrewSection({ flightId, assignments, availableCrew }: Props) {
       {assignments.length === 0 && <p className="text-sm text-slate-500">No crew appointed yet.</p>}
       <ul className="space-y-2">
         {assignments.map((a) => (
-          <li key={a.id} className="flex items-center justify-between rounded-md border border-navy-700 bg-navy-950 px-3 py-2">
-            <div>
-              <span className="text-sm">{a.crewMember.name}</span>
-              <span className="ml-2 font-mono text-xs text-amber-400">{a.crewMember.role}</span>
+          <li key={a.id} className="rounded-md border border-navy-700 bg-navy-950 px-3 py-2">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm">{a.crewMember.name}</span>
+                <span className="font-mono text-xs text-amber-400">{a.crewMember.role}</span>
+                {a.acknowledgedAt ? (
+                  <span
+                    title={`Acknowledged ${new Date(a.acknowledgedAt).toUTCString()}`}
+                    className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300"
+                  >
+                    ✓ Ack&apos;d
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-slate-500/40 bg-slate-500/10 px-2 py-0.5 text-[11px] text-slate-400">
+                    ⏳ Pending ack
+                  </span>
+                )}
+              </div>
+              <form action={unappointCrewAction as unknown as (fd: FormData) => void}>
+                <input type="hidden" name="flightId" value={flightId} />
+                <input type="hidden" name="crewMemberId" value={a.crewMemberId} />
+                <button type="submit" className="text-xs text-slate-400 hover:text-red-400">
+                  Remove
+                </button>
+              </form>
             </div>
-            <form action={unappointCrewAction as unknown as (fd: FormData) => void}>
-              <input type="hidden" name="flightId" value={flightId} />
-              <input type="hidden" name="crewMemberId" value={a.crewMemberId} />
-              <button type="submit" className="text-xs text-slate-400 hover:text-red-400">Remove</button>
-            </form>
+            {a.issue && (
+              <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-amber-200">
+                  <span>⚠</span>
+                  <span>Issue</span>
+                  {a.issueUpdatedAt && (
+                    <span className="ml-1 text-amber-300/70">
+                      · {new Date(a.issueUpdatedAt).toUTCString().slice(5, 22)} UTC
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 whitespace-pre-wrap text-xs text-amber-100">{a.issue}</p>
+              </div>
+            )}
           </li>
         ))}
       </ul>
