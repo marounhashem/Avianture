@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Plane, Users, Building2, LayoutDashboard, CircleUser, LogOut } from "lucide-react";
+import { Plane, Users, Building2, LayoutDashboard, CircleUser, LogOut, CalendarDays } from "lucide-react";
 
 type Item = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
@@ -14,10 +14,16 @@ const operatorItems: Item[] = [
 const handlerItems: Item[] = [
   { href: "/app/hub", label: "Handler Hub", icon: LayoutDashboard },
 ];
+const crewItems: Item[] = [
+  { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
+];
 
 export function Sidebar({ role, userName }: { role: "OPERATOR" | "HANDLER" | "CREW"; userName: string }) {
   const pathname = usePathname();
-  const items = role === "OPERATOR" ? operatorItems : role === "HANDLER" ? handlerItems : [];
+  const items =
+    role === "OPERATOR" ? operatorItems
+    : role === "HANDLER" ? handlerItems
+    : crewItems;
   return (
     <aside className="hidden md:flex h-screen w-60 flex-col border-r border-navy-700 bg-navy-900">
       <div className="px-5 py-6">

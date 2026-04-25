@@ -11,6 +11,7 @@ declare module "next-auth" {
       role: "OPERATOR" | "CREW" | "HANDLER";
       operatorId?: string | null;
       handlerId?: string | null;
+      crewMemberId?: string | null;
     };
   }
 }
@@ -40,6 +41,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           role: user.role,
           operatorId: user.operatorId,
           handlerId: user.handlerId,
+          crewMemberId: user.crewMemberId,
         } as any;
       },
     }),
@@ -51,6 +53,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = (user as any).role;
         token.operatorId = (user as any).operatorId ?? null;
         token.handlerId = (user as any).handlerId ?? null;
+        token.crewMemberId = (user as any).crewMemberId ?? null;
       }
       return token;
     },
@@ -60,6 +63,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         (session.user as any).role = token.role;
         (session.user as any).operatorId = token.operatorId ?? null;
         (session.user as any).handlerId = token.handlerId ?? null;
+        (session.user as any).crewMemberId = token.crewMemberId ?? null;
       }
       return session;
     },
