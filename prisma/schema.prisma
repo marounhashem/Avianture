@@ -108,12 +108,15 @@ model CrewMember {
 }
 
 model CrewAssignment {
-  id           String     @id @default(cuid())
-  flightId     String
-  flight       Flight     @relation(fields: [flightId], references: [id], onDelete: Cascade)
-  crewMemberId String
-  crewMember   CrewMember @relation(fields: [crewMemberId], references: [id])
-  appointedAt  DateTime   @default(now())
+  id             String     @id @default(cuid())
+  flightId       String
+  flight         Flight     @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  crewMemberId   String
+  crewMember     CrewMember @relation(fields: [crewMemberId], references: [id])
+  appointedAt    DateTime   @default(now())
+  acknowledgedAt DateTime?
+  issue          String?
+  issueUpdatedAt DateTime?
 
   @@unique([flightId, crewMemberId])
   @@index([flightId])
