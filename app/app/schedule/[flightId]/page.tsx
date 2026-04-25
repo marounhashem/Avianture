@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { FlightHeader } from "@/components/flights/flight-header";
 import { HandlerStatusList } from "@/components/flights/handler-status-list";
 import { StatusTimeline } from "@/components/flights/status-timeline";
+import { MyAssignmentPanel } from "@/components/schedule/my-assignment-panel";
 
 export default async function CrewFlightDetail({
   params,
@@ -48,6 +49,11 @@ export default async function CrewFlightDetail({
       data-flight-id={flight.id}
     >
       <FlightHeader flight={flight} />
+
+      {(() => {
+        const mine = flight.crewAssignments.find((a) => a.crewMemberId === user.crewMemberId);
+        return mine ? <MyAssignmentPanel flightId={flight.id} assignment={mine} /> : null;
+      })()}
 
       <section className="rounded-lg border border-navy-700 bg-navy-900 p-5">
         <h2 className="text-sm font-semibold text-slate-300 mb-3">Crew on this flight</h2>
