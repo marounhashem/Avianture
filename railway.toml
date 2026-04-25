@@ -4,7 +4,11 @@ buildCommand = "npm run build"
 
 [deploy]
 startCommand = "npm run start"
-preDeployCommand = "npx prisma db push && npx prisma db seed"
+# DB schema sync runs on every deploy. Idempotent: a no-op when schema.prisma matches the live DB.
+# `prisma db push` is correct because this project has no prisma/migrations/ folder.
+# Seeding is intentionally NOT here — seed.ts deleteMany()s every table, so chaining it would
+# wipe the DB on every deploy. Run `railway run npm run db:seed` manually for one-off seeding.
+preDeployCommand = "npx prisma db push --accept-data-loss"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 healthcheckPath = "/login"
