@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Prisma-generated client:
     "lib/generated/**",
+    // Stale subagent worktrees (created by superpowers, not part of the source tree)
+    ".claude/**",
   ]),
   // MVP rule overrides:
   // - `any` is used in Auth.js v5 beta typing workarounds (see docs/DECISIONS.md).

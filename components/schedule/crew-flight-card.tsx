@@ -13,6 +13,7 @@ export function CrewFlightCard({
   myCrewMemberId: string;
 }) {
   const myAssignment = flight.crewAssignments.find((a) => a.crewMemberId === myCrewMemberId);
+  // eslint-disable-next-line react-hooks/purity -- server-rendered per request; "now" snapshot is intentional
   const isPast = flight.etdUtc.getTime() < Date.now();
   return (
     <Link

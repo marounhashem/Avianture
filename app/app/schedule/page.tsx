@@ -5,6 +5,7 @@ import { CalendarDays } from "lucide-react";
 
 export default async function SchedulePage() {
   const user = await requireCrew();
+  // eslint-disable-next-line react-hooks/purity -- server component rendered per request, time-based scoping is intentional
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // last 30 days + future
 
   const flights = await db.flight.findMany({
