@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
 import { canAccessFlight } from "@/lib/auth/flight-access";
 import { db } from "@/lib/db";
+import { notifyNewMessage } from "@/lib/email/notify";
 
 const schema = z.object({
   flightId: z.string(),
@@ -32,12 +33,25 @@ export async function postMessageAction(formData: FormData) {
   );
   if (!ok) return { error: "Forbidden" };
 
+  const trimmed = body.trim();
   await db.flightMessage.create({
-    data: { flightId, authorId: user.id, body: body.trim() },
+    data: { flightId, authorId: user.id, body: trimmed },
   });
 
   revalidatePath(`/app/flights/${flightId}`);
   revalidatePath(`/app/schedule/${flightId}`);
   revalidatePath(`/app/hub/${flightId}`);
+
+  // Best-effort: notify other interested parties who aren't actively viewing.
+  try {
+    await notifyNewMessage({
+      flightId,
+      authorId: user.id,
+      body: trimmed,
+    });
+  } catch (e) {
+    console.error("[notify:message] orchestrator failed:", e);
+  }
+
   return { error: null };
 }

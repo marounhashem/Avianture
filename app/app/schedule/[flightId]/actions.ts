@@ -3,6 +3,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { requireCrew } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { notifyIssueRaised } from "@/lib/email/notify";
 
 const ackSchema = z.object({ flightId: z.string() });
 
@@ -34,6 +35,18 @@ export async function flagIssueAction(formData: FormData) {
   });
   revalidatePath(`/app/schedule/${flightId}`);
   revalidatePath(`/app/flights/${flightId}`);
+
+  // Best-effort: notify operators who aren't actively viewing.
+  try {
+    await notifyIssueRaised({
+      flightId,
+      raisedByUserId: user.id,
+      issue: issue.trim(),
+    });
+  } catch (e) {
+    console.error("[notify:issue] orchestrator failed:", e);
+  }
+
   return { error: null };
 }
 
