@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Flight, CrewAssignment, CrewMember } from "@prisma/client";
+import { AttentionChips } from "@/components/shared/attention-chips";
 
 type FlightWithCrew = Flight & {
   crewAssignments: (CrewAssignment & { crewMember: CrewMember })[];
@@ -8,9 +9,11 @@ type FlightWithCrew = Flight & {
 export function CrewFlightCard({
   flight,
   myCrewMemberId,
+  unread = 0,
 }: {
   flight: FlightWithCrew;
   myCrewMemberId: string;
+  unread?: number;
 }) {
   const myAssignment = flight.crewAssignments.find((a) => a.crewMemberId === myCrewMemberId);
   // eslint-disable-next-line react-hooks/purity -- server-rendered per request; "now" snapshot is intentional
@@ -37,9 +40,12 @@ export function CrewFlightCard({
             </span>
           )}
         </div>
-        <span className="text-xs text-slate-400">
-          {new Date(flight.etdUtc).toUTCString().slice(5, 22)} UTC
-        </span>
+        <div className="flex items-center gap-3">
+          <AttentionChips unread={unread} />
+          <span className="text-xs text-slate-400">
+            {new Date(flight.etdUtc).toUTCString().slice(5, 22)} UTC
+          </span>
+        </div>
       </div>
       <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
         <span>{flight.aircraftType}</span>

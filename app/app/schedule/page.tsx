@@ -2,6 +2,7 @@ import { requireCrew } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { CrewFlightCard } from "@/components/schedule/crew-flight-card";
 import { CalendarDays } from "lucide-react";
+import { lastSeenMap, computeUnread } from "@/lib/flights/views";
 
 export default async function SchedulePage() {
   const user = await requireCrew();
@@ -15,9 +16,15 @@ export default async function SchedulePage() {
     },
     include: {
       crewAssignments: { include: { crewMember: true } },
+      messages: { select: { createdAt: true } },
     },
     orderBy: { etdUtc: "asc" },
   });
+
+  const seen = await lastSeenMap(
+    user.id,
+    flights.map((f) => f.id),
+  );
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 md:px-8 md:py-10">
@@ -37,7 +44,12 @@ export default async function SchedulePage() {
       ) : (
         <div className="grid gap-3">
           {flights.map((f) => (
-            <CrewFlightCard key={f.id} flight={f} myCrewMemberId={user.crewMemberId} />
+            <CrewFlightCard
+              key={f.id}
+              flight={f}
+              myCrewMemberId={user.crewMemberId}
+              unread={computeUnread(f.messages, seen.get(f.id))}
+            />
           ))}
         </div>
       )}
