@@ -4,6 +4,11 @@ import { updateNotificationPrefAction } from "./actions";
 
 const NOTIFICATION_PREFS = [
   {
+    field: "notifyOnMention" as const,
+    label: "@mentions",
+    sub: "When someone @-mentions you in a flight thread. Overrides other settings.",
+  },
+  {
     field: "notifyOnIssueRaised" as const,
     label: "Crew issue raised",
     sub: "When a crew member flags an issue on a flight you operate.",
@@ -39,6 +44,7 @@ export default async function AccountPage() {
       notifyOnNewMessage: true,
       notifyOnServiceStatus: true,
       notifyOnIssueResolved: true,
+      notifyOnMention: true,
     },
   });
 

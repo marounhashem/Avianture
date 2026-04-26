@@ -20,6 +20,10 @@ import {
   IssueResolvedEmail,
   type IssueResolvedEmailProps,
 } from "@/emails/issue-resolved";
+import {
+  MessageMentionEmail,
+  type MessageMentionEmailProps,
+} from "@/emails/message-mention";
 
 export async function sendHandlerInvite(
   to: string,
@@ -88,5 +92,16 @@ export async function sendIssueResolvedNotification(
     to,
     subject: `Your issue on flight ${props.flight.tailNumber} was resolved`,
     react: IssueResolvedEmail(props),
+  });
+}
+
+export async function sendMentionNotification(
+  to: string,
+  props: MessageMentionEmailProps,
+): Promise<SendResult> {
+  return sendEmail({
+    to,
+    subject: `🔔 You were mentioned on flight ${props.flight.tailNumber}`,
+    react: MessageMentionEmail(props),
   });
 }

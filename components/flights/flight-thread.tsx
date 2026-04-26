@@ -5,6 +5,8 @@ import {
   editMessageAction,
   deleteMessageAction,
 } from "@/lib/messages/actions";
+import { parseMentions } from "@/lib/messages/mentions";
+import { getInterestedUsers } from "@/lib/flights/interested-users";
 import { cn } from "@/lib/utils";
 
 export async function FlightThread({
@@ -20,12 +22,15 @@ export async function FlightThread({
   /** From searchParams: which message is currently being edited */
   editingMessageId?: string;
 }) {
-  const messages = await db.flightMessage.findMany({
-    where: { flightId },
-    include: { author: true },
-    orderBy: { createdAt: "asc" },
-    take: 200,
-  });
+  const [messages, interested] = await Promise.all([
+    db.flightMessage.findMany({
+      where: { flightId },
+      include: { author: true },
+      orderBy: { createdAt: "asc" },
+      take: 200,
+    }),
+    getInterestedUsers(flightId),
+  ]);
 
   return (
     <section className="rounded-lg border border-navy-700 bg-navy-900 p-5">
@@ -110,7 +115,21 @@ export async function FlightThread({
                 </form>
               ) : (
                 <>
-                  <p className="text-sm whitespace-pre-wrap">{m.body}</p>
+                  <p className="text-sm whitespace-pre-wrap">
+                    {parseMentions(m.body, interested).map((seg, i) =>
+                      seg.type === "mention" ? (
+                        <span
+                          key={i}
+                          title={`${seg.user.name} · ${seg.user.email}`}
+                          className="rounded bg-amber-500/15 px-1 font-medium text-amber-300"
+                        >
+                          @{seg.user.name.split(" ")[0]}
+                        </span>
+                      ) : (
+                        <span key={i}>{seg.value}</span>
+                      ),
+                    )}
+                  </p>
                   {mine && (
                     <div className="mt-2 flex items-center gap-3">
                       <Link

@@ -5,7 +5,9 @@ import {
   sendMessageNotification,
   sendServiceStatusNotification,
   sendIssueResolvedNotification,
+  sendMentionNotification,
 } from "./send";
+import { extractMentionedUsers } from "@/lib/messages/mentions";
 import {
   getInterestedUsers,
   filterInactiveUsers,
@@ -108,16 +110,42 @@ export async function notifyNewMessage({
 
   const all = await getInterestedUsers(flightId);
   const others = all.filter((u) => u.id !== authorId);
+
+  // Mentions: parse against the candidate pool (interested users on this flight).
+  const mentioned = extractMentionedUsers(body, others).filter(
+    (u) => u.notifyOnMention,
+  );
+  const mentionedIds = new Set(mentioned.map((u) => u.id));
+
+  // Regular notifications: anyone else who's interested + inactive + opted-in.
   const inactive = await filterInactiveUsers(others, flightId);
-  const recipients = inactive.filter((u) => u.notifyOnNewMessage);
+  const regularRecipients = inactive
+    .filter((u) => u.notifyOnNewMessage)
+    .filter((u) => !mentionedIds.has(u.id)); // mentioned users get the mention email instead
 
   const preview =
     body.length > MESSAGE_PREVIEW_MAX
       ? body.slice(0, MESSAGE_PREVIEW_MAX) + "…"
       : body;
 
+  // Mention emails — bypass active-filter and notifyOnNewMessage; use notifyOnMention only.
   await Promise.allSettled(
-    recipients.map((u) =>
+    mentioned.map((u) =>
+      sendMentionNotification(u.email, {
+        authorName: author.name,
+        authorRole: author.role,
+        body: preview,
+        flight,
+        flightUrl: flightUrlForRole(u.role, flightId),
+      }).then((r) => {
+        if (!r.ok) console.error(`[notify:mention] ${u.email}: ${r.error}`);
+      }),
+    ),
+  );
+
+  // Regular new-message emails for everyone else.
+  await Promise.allSettled(
+    regularRecipients.map((u) =>
       sendMessageNotification(u.email, {
         authorName: author.name,
         authorRole: author.role,

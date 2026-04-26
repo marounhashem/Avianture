@@ -10,6 +10,7 @@ const FIELDS = [
   "notifyOnNewMessage",
   "notifyOnServiceStatus",
   "notifyOnIssueResolved",
+  "notifyOnMention",
 ] as const;
 
 type Field = (typeof FIELDS)[number];
@@ -44,6 +45,9 @@ export async function updateNotificationPrefAction(formData: FormData) {
       break;
     case "notifyOnIssueResolved":
       data = { notifyOnIssueResolved: value };
+      break;
+    case "notifyOnMention":
+      data = { notifyOnMention: value };
       break;
   }
 
