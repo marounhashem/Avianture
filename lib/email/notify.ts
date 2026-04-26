@@ -55,10 +55,11 @@ export async function notifyIssueRaised({
     where: { operatorId: flight.operatorId, role: "OPERATOR" },
   });
 
-  const recipients = await filterInactiveUsers(
+  const inactive = await filterInactiveUsers(
     operators.filter((u) => u.id !== raisedByUserId),
     flightId,
   );
+  const recipients = inactive.filter((u) => u.notifyOnIssueRaised);
 
   await Promise.allSettled(
     recipients.map((u) =>
@@ -107,7 +108,8 @@ export async function notifyNewMessage({
 
   const all = await getInterestedUsers(flightId);
   const others = all.filter((u) => u.id !== authorId);
-  const recipients = await filterInactiveUsers(others, flightId);
+  const inactive = await filterInactiveUsers(others, flightId);
+  const recipients = inactive.filter((u) => u.notifyOnNewMessage);
 
   const preview =
     body.length > MESSAGE_PREVIEW_MAX
@@ -162,10 +164,11 @@ export async function notifyServiceStatusChanged({
     where: { operatorId: flight.operatorId, role: "OPERATOR" },
   });
 
-  const recipients = await filterInactiveUsers(
+  const inactive = await filterInactiveUsers(
     operators.filter((u) => u.id !== changedByUserId),
     flight.id,
   );
+  const recipients = inactive.filter((u) => u.notifyOnServiceStatus);
 
   await Promise.allSettled(
     recipients.map((u) =>
@@ -223,6 +226,7 @@ export async function notifyIssueResolved({
 
   const filtered = await filterInactiveUsers([crewUser], a.flightId);
   if (filtered.length === 0) return;
+  if (!crewUser.notifyOnIssueResolved) return;
 
   const send = await sendIssueResolvedNotification(crewUser.email, {
     resolvedByName: resolver.name,

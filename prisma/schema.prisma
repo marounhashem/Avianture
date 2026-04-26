@@ -68,6 +68,13 @@ model User {
   messages       FlightMessage[]
   flightViews    UserFlightView[]
   issuesResolved CrewAssignment[]   @relation("IssueResolvedBy")
+
+  // Slice 13: per-user notification preferences (defaults preserve existing behavior)
+  notifyOnIssueRaised   Boolean @default(true)
+  notifyOnNewMessage    Boolean @default(true)
+  notifyOnServiceStatus Boolean @default(true)
+  notifyOnIssueResolved Boolean @default(true)
+
   createdAt      DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
