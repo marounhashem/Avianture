@@ -3,6 +3,7 @@ import { APP_BASE_URL } from "./resend";
 import {
   sendIssueNotification,
   sendMessageNotification,
+  sendServiceStatusNotification,
 } from "./send";
 import {
   getInterestedUsers,
@@ -122,6 +123,68 @@ export async function notifyNewMessage({
         flightUrl: flightUrlForRole(u.role, flightId),
       }).then((r) => {
         if (!r.ok) console.error(`[notify:message] ${u.email}: ${r.error}`);
+      }),
+    ),
+  );
+}
+
+/**
+ * Notify operator users (only those not currently active) that a handler
+ * updated a ServiceRequest's status.
+ */
+export async function notifyServiceStatusChanged({
+  serviceRequestId,
+  oldStatus,
+  newStatus,
+  changedByUserId,
+}: {
+  serviceRequestId: string;
+  oldStatus: string;
+  newStatus: string;
+  changedByUserId: string;
+}): Promise<void> {
+  const sr = await db.serviceRequest.findUnique({
+    where: { id: serviceRequestId },
+    include: {
+      handlerRequest: {
+        include: {
+          handler: true,
+          flight: true,
+        },
+      },
+    },
+  });
+  if (!sr) return;
+
+  const flight = sr.handlerRequest.flight;
+  const operators = await db.user.findMany({
+    where: { operatorId: flight.operatorId, role: "OPERATOR" },
+  });
+
+  const recipients = await filterInactiveUsers(
+    operators.filter((u) => u.id !== changedByUserId),
+    flight.id,
+  );
+
+  await Promise.allSettled(
+    recipients.map((u) =>
+      sendServiceStatusNotification(u.email, {
+        handlerName: sr.handlerRequest.handler.name,
+        airport: sr.handlerRequest.airport,
+        serviceType: sr.type,
+        oldStatus,
+        newStatus,
+        note: sr.note,
+        flight: {
+          tailNumber: flight.tailNumber,
+          originIcao: flight.originIcao,
+          destIcao: flight.destIcao,
+          etdUtc: flight.etdUtc,
+        },
+        flightUrl: flightUrlForRole("OPERATOR", flight.id),
+      }).then((r) => {
+        if (!r.ok)
+          console.error(`[notify:service] ${u.email}: ${r.error}`);
       }),
     ),
   );

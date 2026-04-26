@@ -12,6 +12,10 @@ import {
   NewMessageEmail,
   type NewMessageEmailProps,
 } from "@/emails/new-message";
+import {
+  ServiceStatusEmail,
+  type ServiceStatusEmailProps,
+} from "@/emails/service-status";
 
 export async function sendHandlerInvite(
   to: string,
@@ -54,5 +58,20 @@ export async function sendMessageNotification(
     to,
     subject: `New message on flight ${props.flight.tailNumber}`,
     react: NewMessageEmail(props),
+  });
+}
+
+export async function sendServiceStatusNotification(
+  to: string,
+  props: ServiceStatusEmailProps,
+): Promise<SendResult> {
+  const pretty = props.newStatus
+    .toLowerCase()
+    .replace("_", " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return sendEmail({
+    to,
+    subject: `Service update: ${props.serviceType} ${pretty} — ${props.flight.tailNumber}`,
+    react: ServiceStatusEmail(props),
   });
 }

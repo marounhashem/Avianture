@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireHandler } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { canTransition, type ServiceStatus } from "@/lib/flights/services";
+import { notifyServiceStatusChanged } from "@/lib/email/notify";
 
 const schema = z.object({
   serviceRequestId: z.string(),
@@ -26,6 +27,8 @@ export async function updateServiceStatusAction(formData: FormData) {
   if (service.handlerRequest.handlerId !== user.handlerId) return { error: "Forbidden" };
   if (!canTransition(service.status as ServiceStatus, toStatus as ServiceStatus)) return { error: "Invalid transition" };
 
+  const oldStatus = service.status;
+
   await db.$transaction([
     db.serviceRequest.update({
       where: { id: serviceRequestId },
@@ -34,12 +37,27 @@ export async function updateServiceStatusAction(formData: FormData) {
     db.serviceStatusLog.create({
       data: {
         serviceRequestId,
-        fromStatus: service.status,
+        fromStatus: oldStatus,
         toStatus,
         changedByUserId: user.id,
       },
     }),
   ]);
   revalidatePath(`/app/hub/${flightId}`);
+  revalidatePath(`/app/flights/${flightId}`);
+  revalidatePath(`/app/schedule/${flightId}`);
+
+  // Best-effort: notify operators who aren't actively viewing.
+  try {
+    await notifyServiceStatusChanged({
+      serviceRequestId,
+      oldStatus,
+      newStatus: toStatus,
+      changedByUserId: user.id,
+    });
+  } catch (e) {
+    console.error("[notify:service] orchestrator failed:", e);
+  }
+
   return { error: null };
 }
