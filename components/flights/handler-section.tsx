@@ -1,4 +1,8 @@
-import { inviteHandlerAction } from "@/app/app/flights/[id]/actions";
+import {
+  inviteHandlerAction,
+  resendHandlerInviteAction,
+  cancelHandlerInviteAction,
+} from "@/app/app/flights/[id]/actions";
 import { StatusChip } from "@/components/shared/status-chip";
 import { CopyButton } from "@/components/shared/copy-button";
 import type { Handler, HandlerRequest, ServiceRequest } from "@prisma/client";
@@ -37,10 +41,54 @@ export function HandlerSection({
                 <span className="text-xs text-slate-400">{acceptedOrPending}</span>
               </div>
               {!r.inviteAcceptedAt && (
-                <div className="flex items-center gap-2 mb-3">
-                  <code className="flex-1 truncate rounded bg-navy-900 px-2 py-1 text-xs text-slate-400">{link}</code>
-                  <CopyButton text={link} />
-                </div>
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <code className="flex-1 truncate rounded bg-navy-900 px-2 py-1 text-xs text-slate-400">
+                      {link}
+                    </code>
+                    <CopyButton text={link} />
+                  </div>
+                  <div className="mb-3 flex items-center gap-2">
+                    <form
+                      action={
+                        resendHandlerInviteAction as unknown as (
+                          fd: FormData,
+                        ) => void
+                      }
+                    >
+                      <input type="hidden" name="flightId" value={flightId} />
+                      <input type="hidden" name="handlerRequestId" value={r.id} />
+                      <button
+                        type="submit"
+                        disabled={!r.handler.email}
+                        title={
+                          r.handler.email
+                            ? `Resend to ${r.handler.email}`
+                            : "No email on handler record"
+                        }
+                        className="rounded-md border border-navy-700 bg-navy-950 px-2.5 py-1 text-xs text-slate-300 hover:border-amber-500 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-navy-700"
+                      >
+                        Resend email
+                      </button>
+                    </form>
+                    <form
+                      action={
+                        cancelHandlerInviteAction as unknown as (
+                          fd: FormData,
+                        ) => void
+                      }
+                    >
+                      <input type="hidden" name="flightId" value={flightId} />
+                      <input type="hidden" name="handlerRequestId" value={r.id} />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-navy-700 bg-navy-950 px-2.5 py-1 text-xs text-slate-400 hover:border-red-500 hover:text-red-300"
+                      >
+                        Cancel
+                      </button>
+                    </form>
+                  </div>
+                </>
               )}
               <div className="flex flex-wrap gap-1.5">
                 {r.services.map((s) => (

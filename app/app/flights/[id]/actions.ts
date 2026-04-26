@@ -153,3 +153,87 @@ export async function resolveIssueAction(formData: FormData) {
 
   return { error: null };
 }
+
+const handlerRequestActionSchema = z.object({
+  flightId: z.string(),
+  handlerRequestId: z.string(),
+});
+
+export async function resendHandlerInviteAction(formData: FormData) {
+  const user = await requireOperator();
+  const parsed = handlerRequestActionSchema.safeParse(
+    Object.fromEntries(formData),
+  );
+  if (!parsed.success) return { error: "Invalid input" };
+  const { flightId, handlerRequestId } = parsed.data;
+
+  // Multi-tenant: ensure flight belongs to this operator
+  const request = await db.handlerRequest.findFirst({
+    where: {
+      id: handlerRequestId,
+      flightId,
+      flight: { operatorId: user.operatorId },
+    },
+    include: {
+      handler: true,
+      flight: { include: { operator: true } },
+      services: true,
+    },
+  });
+  if (!request) return { error: "Invite not found" };
+  if (request.inviteAcceptedAt) return { error: "Invite already accepted" };
+  if (request.inviteExpiresAt < new Date())
+    return { error: "Invite has expired" };
+  if (!request.handler.email) return { error: "Handler has no email on file" };
+
+  const inviteUrl = `${APP_BASE_URL}/invite/${request.inviteToken}`;
+  const send = await sendHandlerInvite(request.handler.email, {
+    handlerName: request.handler.name,
+    operatorName: request.flight.operator.name,
+    flight: {
+      tailNumber: request.flight.tailNumber,
+      originIcao: request.flight.originIcao,
+      destIcao: request.flight.destIcao,
+      etdUtc: request.flight.etdUtc,
+      aircraftType: request.flight.aircraftType,
+      pax: request.flight.pax,
+    },
+    airport: request.airport,
+    services: request.services.map((s) => s.type),
+    inviteUrl,
+  });
+  if (!send.ok) {
+    console.error(
+      `[invite:resend] Failed to email ${request.handler.email}: ${send.error}`,
+    );
+    return { error: "Couldn't send email — check Resend logs" };
+  }
+
+  revalidatePath(`/app/flights/${flightId}`);
+  return { error: null };
+}
+
+export async function cancelHandlerInviteAction(formData: FormData) {
+  const user = await requireOperator();
+  const parsed = handlerRequestActionSchema.safeParse(
+    Object.fromEntries(formData),
+  );
+  if (!parsed.success) return { error: "Invalid input" };
+  const { flightId, handlerRequestId } = parsed.data;
+
+  const request = await db.handlerRequest.findFirst({
+    where: {
+      id: handlerRequestId,
+      flightId,
+      flight: { operatorId: user.operatorId },
+    },
+  });
+  if (!request) return { error: "Invite not found" };
+  if (request.inviteAcceptedAt)
+    return { error: "Cannot cancel an accepted invite" };
+
+  await db.handlerRequest.delete({ where: { id: request.id } });
+
+  revalidatePath(`/app/flights/${flightId}`);
+  return { error: null };
+}
