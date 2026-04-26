@@ -2,11 +2,50 @@ import Link from "next/link";
 import { requireOperator } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { FlightCard } from "@/components/flights/flight-card";
+import {
+  FilterBar,
+  type StatusFilter,
+  type AttentionFilter,
+} from "@/components/flights/filter-bar";
 import { Plane } from "lucide-react";
 import { lastSeenMap, computeUnread } from "@/lib/flights/views";
 
-export default async function FlightsPage() {
+const VALID_STATUS: StatusFilter[] = [
+  "all",
+  "draft",
+  "active",
+  "completed",
+  "cancelled",
+];
+const VALID_ATTENTION = ["unread", "issues", "pending"] as const;
+
+function parseStatus(raw: string | undefined): StatusFilter {
+  if (!raw) return "all";
+  const v = raw.toLowerCase();
+  return (VALID_STATUS as readonly string[]).includes(v)
+    ? (v as StatusFilter)
+    : "all";
+}
+
+function parseAttention(raw: string | undefined): AttentionFilter {
+  if (!raw) return undefined;
+  const v = raw.toLowerCase();
+  return (VALID_ATTENTION as readonly string[]).includes(v)
+    ? (v as Exclude<AttentionFilter, undefined>)
+    : undefined;
+}
+
+export default async function FlightsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string; filter?: string }>;
+}) {
   const user = await requireOperator();
+  const sp = await searchParams;
+  const q = (sp.q ?? "").trim();
+  const status = parseStatus(sp.status);
+  const filter = parseAttention(sp.filter);
+
   const flights = await db.flight.findMany({
     where: { operatorId: user.operatorId },
     include: {
@@ -27,19 +66,37 @@ export default async function FlightsPage() {
     flight: f,
     badges: {
       unread: computeUnread(f.messages, seen.get(f.id)),
-      issues: f.crewAssignments.filter((a) => a.issue).length,
+      issues: f.crewAssignments.filter(
+        (a) => a.issue && !a.issueResolvedAt,
+      ).length,
       pending: f.handlerRequests.filter((r) => !r.inviteAcceptedAt).length,
     },
   }));
 
+  // Apply filters
+  const filtered = flightsWithBadges.filter(({ flight, badges }) => {
+    // Search across tail + ICAO
+    if (q) {
+      const needle = q.toLowerCase();
+      const hay = `${flight.tailNumber} ${flight.originIcao} ${flight.destIcao}`.toLowerCase();
+      if (!hay.includes(needle)) return false;
+    }
+    // Status
+    if (status !== "all" && flight.status.toLowerCase() !== status) return false;
+    // Attention
+    if (filter === "unread" && badges.unread === 0) return false;
+    if (filter === "issues" && badges.issues === 0) return false;
+    if (filter === "pending" && badges.pending === 0) return false;
+    return true;
+  });
+
+  const anyFilter = !!q || status !== "all" || !!filter;
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 md:px-8 md:py-10">
-      <div className="flex items-center justify-between mb-6">
+    <div className="mx-auto max-w-5xl px-4 py-8 md:px-8 md:py-10 space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Flights</h1>
-          <p className="text-sm text-slate-400 mt-1">
-            {flights.length} flight{flights.length === 1 ? "" : "s"}
-          </p>
         </div>
         <Link
           href="/app/flights/new"
@@ -48,6 +105,15 @@ export default async function FlightsPage() {
           New flight
         </Link>
       </div>
+
+      <FilterBar
+        q={q}
+        status={status}
+        filter={filter}
+        totalShown={filtered.length}
+        totalAll={flights.length}
+      />
+
       {flights.length === 0 ? (
         <div className="rounded-lg border border-dashed border-navy-700 p-12 text-center">
           <Plane className="mx-auto h-8 w-8 text-slate-500" />
@@ -55,9 +121,21 @@ export default async function FlightsPage() {
             No flights yet. Create your first one.
           </p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-navy-700 p-12 text-center">
+          <Plane className="mx-auto h-8 w-8 text-slate-500" />
+          <p className="mt-3 text-sm text-slate-400">
+            No flights match these filters.{" "}
+            {anyFilter && (
+              <Link href="/app/flights" className="text-amber-400 hover:underline">
+                Clear all
+              </Link>
+            )}
+          </p>
+        </div>
       ) : (
         <div className="grid gap-3">
-          {flightsWithBadges.map(({ flight, badges }) => (
+          {filtered.map(({ flight, badges }) => (
             <FlightCard key={flight.id} flight={flight} badges={badges} />
           ))}
         </div>
