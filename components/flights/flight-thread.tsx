@@ -1,13 +1,24 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
-import { postMessageAction } from "@/lib/messages/actions";
+import {
+  postMessageAction,
+  editMessageAction,
+  deleteMessageAction,
+} from "@/lib/messages/actions";
 import { cn } from "@/lib/utils";
 
 export async function FlightThread({
   flightId,
   currentUserId,
+  basePath,
+  editingMessageId,
 }: {
   flightId: string;
   currentUserId: string;
+  /** The path the thread lives on (e.g., `/app/flights/{id}`) — used to build edit/cancel links. */
+  basePath: string;
+  /** From searchParams: which message is currently being edited */
+  editingMessageId?: string;
 }) {
   const messages = await db.flightMessage.findMany({
     where: { flightId },
@@ -27,6 +38,22 @@ export async function FlightThread({
         )}
         {messages.map((m) => {
           const mine = m.authorId === currentUserId;
+          const isEditing = editingMessageId === m.id && mine && !m.deletedAt;
+
+          if (m.deletedAt) {
+            return (
+              <li
+                key={m.id}
+                className="rounded-md border border-navy-700/50 bg-navy-950/50 p-3"
+              >
+                <p className="text-xs italic text-slate-500">
+                  [message deleted ·{" "}
+                  {new Date(m.deletedAt).toUTCString().slice(5, 22)} UTC]
+                </p>
+              </li>
+            );
+          }
+
           return (
             <li
               key={m.id}
@@ -35,17 +62,83 @@ export async function FlightThread({
                 mine ? "border-amber-500/40" : "border-navy-700",
               )}
             >
-              <div className="flex items-baseline justify-between mb-1">
+              <div className="flex items-baseline justify-between mb-1 gap-2">
                 <span className="text-xs font-medium">
                   <span className="text-amber-400">{m.author.name}</span>{" "}
                   <span className="text-slate-500">·</span>{" "}
-                  <span className="text-slate-500 font-normal">{m.author.role}</span>
+                  <span className="text-slate-500 font-normal">
+                    {m.author.role}
+                  </span>
                 </span>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-slate-500 shrink-0">
                   {new Date(m.createdAt).toUTCString().slice(5, 22)} UTC
+                  {m.editedAt && (
+                    <span className="ml-1 text-slate-600">(edited)</span>
+                  )}
                 </span>
               </div>
-              <p className="text-sm whitespace-pre-wrap">{m.body}</p>
+              {isEditing ? (
+                <form
+                  action={
+                    editMessageAction as unknown as (fd: FormData) => void
+                  }
+                  className="mt-1 space-y-2"
+                >
+                  <input type="hidden" name="messageId" value={m.id} />
+                  <textarea
+                    name="body"
+                    required
+                    maxLength={2000}
+                    rows={2}
+                    defaultValue={m.body}
+                    className="w-full rounded-md border border-navy-700 bg-navy-900 px-3 py-2 text-sm outline-none focus:border-amber-500"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="submit"
+                      className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-navy-950 hover:bg-amber-400"
+                    >
+                      Save
+                    </button>
+                    <Link
+                      href={basePath}
+                      className="text-xs text-slate-400 hover:text-amber-400"
+                    >
+                      Cancel
+                    </Link>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <p className="text-sm whitespace-pre-wrap">{m.body}</p>
+                  {mine && (
+                    <div className="mt-2 flex items-center gap-3">
+                      <Link
+                        href={`${basePath}?edit=${m.id}`}
+                        className="text-xs text-slate-500 hover:text-amber-400"
+                      >
+                        Edit
+                      </Link>
+                      <form
+                        action={
+                          deleteMessageAction as unknown as (
+                            fd: FormData,
+                          ) => void
+                        }
+                        className="inline"
+                      >
+                        <input type="hidden" name="messageId" value={m.id} />
+                        <button
+                          type="submit"
+                          className="text-xs text-slate-500 hover:text-red-400"
+                        >
+                          Delete
+                        </button>
+                      </form>
+                    </div>
+                  )}
+                </>
+              )}
             </li>
           );
         })}

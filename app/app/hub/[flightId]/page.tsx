@@ -7,10 +7,13 @@ import { markFlightSeen } from "@/lib/flights/views";
 
 export default async function HubFlightPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ flightId: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
   const { flightId } = await params;
+  const { edit } = await searchParams;
   const user = await requireHandler();
   const req = await db.handlerRequest.findFirst({
     where: { flightId, handlerId: user.handlerId, inviteAcceptedAt: { not: null } },
@@ -33,7 +36,12 @@ export default async function HubFlightPage({
         </p>
       </header>
       <ServiceChecklist flightId={req.flight.id} services={req.services} />
-      <FlightThread flightId={req.flight.id} currentUserId={user.id} />
+      <FlightThread
+        flightId={req.flight.id}
+        currentUserId={user.id}
+        basePath={`/app/hub/${req.flight.id}`}
+        editingMessageId={edit}
+      />
       <AutoRefresh />
     </div>
   );

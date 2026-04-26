@@ -55,3 +55,63 @@ export async function postMessageAction(formData: FormData) {
 
   return { error: null };
 }
+
+const editSchema = z.object({
+  messageId: z.string(),
+  body: z.string().min(1).max(2000),
+});
+
+export async function editMessageAction(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const user = session.user;
+
+  const parsed = editSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Invalid input" };
+  const { messageId, body } = parsed.data;
+
+  const msg = await db.flightMessage.findUnique({
+    where: { id: messageId },
+    select: { authorId: true, flightId: true, deletedAt: true },
+  });
+  if (!msg) return { error: "Message not found" };
+  if (msg.authorId !== user.id) return { error: "Forbidden" };
+  if (msg.deletedAt) return { error: "Cannot edit a deleted message" };
+
+  await db.flightMessage.update({
+    where: { id: messageId },
+    data: { body: body.trim(), editedAt: new Date() },
+  });
+
+  revalidatePath(`/app/flights/${msg.flightId}`);
+  revalidatePath(`/app/schedule/${msg.flightId}`);
+  revalidatePath(`/app/hub/${msg.flightId}`);
+  return { error: null };
+}
+
+export async function deleteMessageAction(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const user = session.user;
+
+  const messageId = String(formData.get("messageId") ?? "");
+  if (!messageId) return { error: "Invalid input" };
+
+  const msg = await db.flightMessage.findUnique({
+    where: { id: messageId },
+    select: { authorId: true, flightId: true, deletedAt: true },
+  });
+  if (!msg) return { error: "Message not found" };
+  if (msg.authorId !== user.id) return { error: "Forbidden" };
+  if (msg.deletedAt) return { error: null }; // already deleted, idempotent
+
+  await db.flightMessage.update({
+    where: { id: messageId },
+    data: { deletedAt: new Date() },
+  });
+
+  revalidatePath(`/app/flights/${msg.flightId}`);
+  revalidatePath(`/app/schedule/${msg.flightId}`);
+  revalidatePath(`/app/hub/${msg.flightId}`);
+  return { error: null };
+}

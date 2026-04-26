@@ -10,10 +10,13 @@ import { markFlightSeen } from "@/lib/flights/views";
 
 export default async function CrewFlightDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ flightId: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
   const { flightId } = await params;
+  const { edit } = await searchParams;
   const user = await requireCrew();
 
   const flight = await db.flight.findFirst({
@@ -87,7 +90,12 @@ export default async function CrewFlightDetail({
 
       <StatusTimeline logs={allLogs} />
 
-      <FlightThread flightId={flight.id} currentUserId={user.id} />
+      <FlightThread
+        flightId={flight.id}
+        currentUserId={user.id}
+        basePath={`/app/schedule/${flight.id}`}
+        editingMessageId={edit}
+      />
 
       <AutoRefresh />
     </div>

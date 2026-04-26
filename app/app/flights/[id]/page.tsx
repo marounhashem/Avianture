@@ -9,8 +9,15 @@ import { FlightThread } from "@/components/flights/flight-thread";
 import { markFlightSeen } from "@/lib/flights/views";
 import { headers } from "next/headers";
 
-export default async function FlightDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function FlightDetail({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string }>;
+}) {
   const { id } = await params;
+  const { edit } = await searchParams;
   const user = await requireOperator();
   const flight = await db.flight.findFirst({
     where: { id, operatorId: user.operatorId },
@@ -60,7 +67,12 @@ export default async function FlightDetail({ params }: { params: Promise<{ id: s
 
       <StatusTimeline logs={allLogs} />
 
-      <FlightThread flightId={flight.id} currentUserId={user.id} />
+      <FlightThread
+        flightId={flight.id}
+        currentUserId={user.id}
+        basePath={`/app/flights/${flight.id}`}
+        editingMessageId={edit}
+      />
 
       <AutoRefresh />
     </div>
