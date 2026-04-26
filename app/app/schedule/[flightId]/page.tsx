@@ -6,6 +6,7 @@ import { HandlerStatusList } from "@/components/flights/handler-status-list";
 import { StatusTimeline } from "@/components/flights/status-timeline";
 import { FlightThread } from "@/components/flights/flight-thread";
 import { MyAssignmentPanel } from "@/components/schedule/my-assignment-panel";
+import { markFlightSeen } from "@/lib/flights/views";
 
 export default async function CrewFlightDetail({
   params,
@@ -38,6 +39,8 @@ export default async function CrewFlightDetail({
     },
   });
   if (!flight) notFound();
+
+  await markFlightSeen(user.id, flight.id);
 
   const allLogs = flight.handlerRequests.flatMap((hr) =>
     hr.services.flatMap((s) => s.statusLogs),

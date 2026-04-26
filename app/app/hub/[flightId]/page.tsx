@@ -3,6 +3,7 @@ import { requireHandler } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { ServiceChecklist } from "@/components/handler-hub/service-checklist";
 import { FlightThread } from "@/components/flights/flight-thread";
+import { markFlightSeen } from "@/lib/flights/views";
 
 export default async function HubFlightPage({
   params,
@@ -16,6 +17,7 @@ export default async function HubFlightPage({
     include: { flight: true, services: { orderBy: { type: "asc" } } },
   });
   if (!req) notFound();
+  await markFlightSeen(user.id, req.flight.id);
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 md:px-8 md:py-10 space-y-6">
       <header>

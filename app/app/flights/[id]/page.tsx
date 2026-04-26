@@ -6,6 +6,7 @@ import { HandlerSection } from "@/components/flights/handler-section";
 import { StatusTimeline } from "@/components/flights/status-timeline";
 import { FlightHeader } from "@/components/flights/flight-header";
 import { FlightThread } from "@/components/flights/flight-thread";
+import { markFlightSeen } from "@/lib/flights/views";
 import { headers } from "next/headers";
 
 export default async function FlightDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +25,8 @@ export default async function FlightDetail({ params }: { params: Promise<{ id: s
     },
   });
   if (!flight) notFound();
+
+  await markFlightSeen(user.id, flight.id);
 
   const [availableCrew, availableHandlers] = await Promise.all([
     db.crewMember.findMany({ where: { operatorId: user.operatorId }, orderBy: { name: "asc" } }),
