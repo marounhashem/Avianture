@@ -56,7 +56,25 @@ export function MyAssignmentPanel({
         </div>
         {assignment.issue ? (
           <div className="space-y-2">
-            <p className="text-sm text-amber-200 whitespace-pre-wrap">{assignment.issue}</p>
+            {assignment.issueResolvedAt && (
+              <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-200">
+                  <span>✓</span>
+                  <span>Resolved by operator</span>
+                  <span className="ml-1 text-emerald-300/70">
+                    · {new Date(assignment.issueResolvedAt).toUTCString().slice(5, 22)} UTC
+                  </span>
+                </div>
+                {assignment.issueResolution && (
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-emerald-100">
+                    {assignment.issueResolution}
+                  </p>
+                )}
+              </div>
+            )}
+            <p className="text-sm text-amber-200 whitespace-pre-wrap">
+              {assignment.issue}
+            </p>
             {assignment.issueUpdatedAt && (
               <p className="text-xs text-slate-500">
                 Last updated{" "}

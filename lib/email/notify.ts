@@ -4,6 +4,7 @@ import {
   sendIssueNotification,
   sendMessageNotification,
   sendServiceStatusNotification,
+  sendIssueResolvedNotification,
 } from "./send";
 import {
   getInterestedUsers,
@@ -188,4 +189,54 @@ export async function notifyServiceStatusChanged({
       }),
     ),
   );
+}
+
+/**
+ * Notify the crew member (the user behind the CrewMember) that their issue
+ * was resolved. Skipped if the crew member has no linked user account or is
+ * actively viewing the flight.
+ */
+export async function notifyIssueResolved({
+  crewAssignmentId,
+  resolvedByUserId,
+}: {
+  crewAssignmentId: string;
+  resolvedByUserId: string;
+}): Promise<void> {
+  const a = await db.crewAssignment.findUnique({
+    where: { id: crewAssignmentId },
+    include: {
+      flight: true,
+      crewMember: { include: { user: true } },
+    },
+  });
+  if (!a) return;
+  if (!a.issue) return; // nothing to notify about
+  const crewUser = a.crewMember.user;
+  if (!crewUser) return; // crew has no login account
+
+  const resolver = await db.user.findUnique({
+    where: { id: resolvedByUserId },
+    select: { name: true },
+  });
+  if (!resolver) return;
+
+  const filtered = await filterInactiveUsers([crewUser], a.flightId);
+  if (filtered.length === 0) return;
+
+  const send = await sendIssueResolvedNotification(crewUser.email, {
+    resolvedByName: resolver.name,
+    resolution: a.issueResolution,
+    originalIssue: a.issue,
+    flight: {
+      tailNumber: a.flight.tailNumber,
+      originIcao: a.flight.originIcao,
+      destIcao: a.flight.destIcao,
+      etdUtc: a.flight.etdUtc,
+    },
+    flightUrl: flightUrlForRole("CREW", a.flightId),
+  });
+  if (!send.ok) {
+    console.error(`[notify:issue-resolved] ${crewUser.email}: ${send.error}`);
+  }
 }

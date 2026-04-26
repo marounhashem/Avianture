@@ -64,10 +64,11 @@ model User {
   handler       Handler?           @relation(fields: [handlerId], references: [id])
   crewMemberId  String?            @unique
   crewMember    CrewMember?        @relation(fields: [crewMemberId], references: [id])
-  statusChanges ServiceStatusLog[]
-  messages      FlightMessage[]
-  flightViews   UserFlightView[]
-  createdAt     DateTime           @default(now())
+  statusChanges  ServiceStatusLog[]
+  messages       FlightMessage[]
+  flightViews    UserFlightView[]
+  issuesResolved CrewAssignment[]   @relation("IssueResolvedBy")
+  createdAt      DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
   @@index([operatorId])
@@ -112,15 +113,19 @@ model CrewMember {
 }
 
 model CrewAssignment {
-  id             String     @id @default(cuid())
-  flightId       String
-  flight         Flight     @relation(fields: [flightId], references: [id], onDelete: Cascade)
-  crewMemberId   String
-  crewMember     CrewMember @relation(fields: [crewMemberId], references: [id])
-  appointedAt    DateTime   @default(now())
-  acknowledgedAt DateTime?
-  issue          String?
-  issueUpdatedAt DateTime?
+  id                String     @id @default(cuid())
+  flightId          String
+  flight            Flight     @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  crewMemberId      String
+  crewMember        CrewMember @relation(fields: [crewMemberId], references: [id])
+  appointedAt       DateTime   @default(now())
+  acknowledgedAt    DateTime?
+  issue             String?
+  issueUpdatedAt    DateTime?
+  issueResolvedAt   DateTime?
+  issueResolvedById String?
+  issueResolvedBy   User?      @relation("IssueResolvedBy", fields: [issueResolvedById], references: [id])
+  issueResolution   String?
 
   @@unique([flightId, crewMemberId])
   @@index([flightId])

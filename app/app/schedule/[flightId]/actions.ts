@@ -31,7 +31,14 @@ export async function flagIssueAction(formData: FormData) {
   const { flightId, issue } = parsed.data;
   await db.crewAssignment.updateMany({
     where: { flightId, crewMemberId: user.crewMemberId },
-    data: { issue: issue.trim(), issueUpdatedAt: new Date() },
+    data: {
+      issue: issue.trim(),
+      issueUpdatedAt: new Date(),
+      // Re-flagging an already-resolved issue clears the resolution (it's open again).
+      issueResolvedAt: null,
+      issueResolvedById: null,
+      issueResolution: null,
+    },
   });
   revalidatePath(`/app/schedule/${flightId}`);
   revalidatePath(`/app/flights/${flightId}`);
@@ -55,7 +62,13 @@ export async function clearIssueAction(formData: FormData) {
   const flightId = String(formData.get("flightId"));
   await db.crewAssignment.updateMany({
     where: { flightId, crewMemberId: user.crewMemberId },
-    data: { issue: null, issueUpdatedAt: new Date() },
+    data: {
+      issue: null,
+      issueUpdatedAt: new Date(),
+      issueResolvedAt: null,
+      issueResolvedById: null,
+      issueResolution: null,
+    },
   });
   revalidatePath(`/app/schedule/${flightId}`);
   revalidatePath(`/app/flights/${flightId}`);

@@ -15,7 +15,9 @@ export default async function FlightDetail({ params }: { params: Promise<{ id: s
   const flight = await db.flight.findFirst({
     where: { id, operatorId: user.operatorId },
     include: {
-      crewAssignments: { include: { crewMember: true } },
+      crewAssignments: {
+        include: { crewMember: true, issueResolvedBy: true },
+      },
       handlerRequests: {
         include: {
           handler: true,

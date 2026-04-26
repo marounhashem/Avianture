@@ -7,6 +7,7 @@ import { generateInviteToken, inviteExpiryDate } from "@/lib/invites/tokens";
 import { DEFAULT_SERVICE_TYPES } from "@/lib/flights/services";
 import { sendHandlerInvite } from "@/lib/email/send";
 import { APP_BASE_URL } from "@/lib/email/resend";
+import { notifyIssueResolved } from "@/lib/email/notify";
 
 const appointCrewSchema = z.object({
   flightId: z.string(),
@@ -100,5 +101,55 @@ export async function inviteHandlerAction(formData: FormData) {
   }
 
   revalidatePath(`/app/flights/${flightId}`);
+  return { error: null };
+}
+
+const resolveIssueSchema = z.object({
+  flightId: z.string(),
+  crewMemberId: z.string(),
+  resolution: z.string().max(500).optional().or(z.literal("")),
+});
+
+export async function resolveIssueAction(formData: FormData) {
+  const user = await requireOperator();
+  const parsed = resolveIssueSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Invalid input" };
+  const { flightId, crewMemberId, resolution } = parsed.data;
+
+  // Multi-tenant: ensure flight belongs to this operator
+  const flight = await db.flight.findFirst({
+    where: { id: flightId, operatorId: user.operatorId },
+    select: { id: true },
+  });
+  if (!flight) return { error: "Flight not found" };
+
+  const assignment = await db.crewAssignment.findUnique({
+    where: { flightId_crewMemberId: { flightId, crewMemberId } },
+  });
+  if (!assignment) return { error: "Assignment not found" };
+  if (!assignment.issue) return { error: "No issue to resolve" };
+
+  const updated = await db.crewAssignment.update({
+    where: { id: assignment.id },
+    data: {
+      issueResolvedAt: new Date(),
+      issueResolvedById: user.id,
+      issueResolution: resolution?.trim() || null,
+    },
+  });
+
+  revalidatePath(`/app/flights/${flightId}`);
+  revalidatePath(`/app/schedule/${flightId}`);
+
+  // Best-effort: notify the crew member who raised the issue.
+  try {
+    await notifyIssueResolved({
+      crewAssignmentId: updated.id,
+      resolvedByUserId: user.id,
+    });
+  } catch (e) {
+    console.error("[notify:issue-resolved] orchestrator failed:", e);
+  }
+
   return { error: null };
 }

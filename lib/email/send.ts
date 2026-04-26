@@ -16,6 +16,10 @@ import {
   ServiceStatusEmail,
   type ServiceStatusEmailProps,
 } from "@/emails/service-status";
+import {
+  IssueResolvedEmail,
+  type IssueResolvedEmailProps,
+} from "@/emails/issue-resolved";
 
 export async function sendHandlerInvite(
   to: string,
@@ -73,5 +77,16 @@ export async function sendServiceStatusNotification(
     to,
     subject: `Service update: ${props.serviceType} ${pretty} — ${props.flight.tailNumber}`,
     react: ServiceStatusEmail(props),
+  });
+}
+
+export async function sendIssueResolvedNotification(
+  to: string,
+  props: IssueResolvedEmailProps,
+): Promise<SendResult> {
+  return sendEmail({
+    to,
+    subject: `Your issue on flight ${props.flight.tailNumber} was resolved`,
+    react: IssueResolvedEmail(props),
   });
 }
