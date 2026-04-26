@@ -16,33 +16,78 @@ declare module "next-auth" {
   }
 }
 
-const credsSchema = z.object({
+const pwSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
+
+const magicSchema = z.object({
+  email: z.string().email(),
+  magicToken: z.string().min(10),
+});
+
+function userToSession(user: {
+  id: string;
+  email: string;
+  name: string;
+  role: "OPERATOR" | "CREW" | "HANDLER";
+  operatorId: string | null;
+  handlerId: string | null;
+  crewMemberId: string | null;
+}) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    operatorId: user.operatorId,
+    handlerId: user.handlerId,
+    crewMemberId: user.crewMemberId,
+  };
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30 },
   pages: { signIn: "/login" },
   providers: [
     Credentials({
-      credentials: { email: {}, password: {} },
+      credentials: { email: {}, password: {}, magicToken: {} },
       authorize: async (creds) => {
-        const parsed = credsSchema.safeParse(creds);
-        if (!parsed.success) return null;
-        const user = await db.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
-        if (!user) return null;
-        const ok = await verifyPassword(parsed.data.password, user.passwordHash);
-        if (!ok) return null;
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          operatorId: user.operatorId,
-          handlerId: user.handlerId,
-          crewMemberId: user.crewMemberId,
-        } as any;
+        // Path A: magic-link token
+        const magic = magicSchema.safeParse(creds);
+        if (magic.success) {
+          const { email, magicToken } = magic.data;
+          const tokenRow = await db.magicLinkToken.findUnique({
+            where: { token: magicToken },
+          });
+          if (!tokenRow) return null;
+          if (tokenRow.used) return null;
+          if (tokenRow.expiresAt < new Date()) return null;
+          if (tokenRow.email !== email.toLowerCase()) return null;
+          const user = await db.user.findUnique({
+            where: { email: email.toLowerCase() },
+          });
+          if (!user) return null;
+          await db.magicLinkToken.update({
+            where: { id: tokenRow.id },
+            data: { used: true },
+          });
+          return userToSession(user) as any;
+        }
+
+        // Path B: email + password
+        const pw = pwSchema.safeParse(creds);
+        if (pw.success) {
+          const user = await db.user.findUnique({
+            where: { email: pw.data.email.toLowerCase() },
+          });
+          if (!user) return null;
+          const ok = await verifyPassword(pw.data.password, user.passwordHash);
+          if (!ok) return null;
+          return userToSession(user) as any;
+        }
+
+        return null;
       },
     }),
   ],

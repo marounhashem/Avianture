@@ -5,6 +5,8 @@ import { requireOperator } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { generateInviteToken, inviteExpiryDate } from "@/lib/invites/tokens";
 import { DEFAULT_SERVICE_TYPES } from "@/lib/flights/services";
+import { sendHandlerInvite } from "@/lib/email/send";
+import { APP_BASE_URL } from "@/lib/email/resend";
 
 const appointCrewSchema = z.object({
   flightId: z.string(),
@@ -47,23 +49,56 @@ const inviteSchema = z.object({
 export async function inviteHandlerAction(formData: FormData) {
   const user = await requireOperator();
   const { flightId, handlerId, airport } = inviteSchema.parse(Object.fromEntries(formData));
-  const flight = await db.flight.findFirst({ where: { id: flightId, operatorId: user.operatorId } });
+  const flight = await db.flight.findFirst({
+    where: { id: flightId, operatorId: user.operatorId },
+    include: { operator: true },
+  });
   if (!flight) return { error: "Flight not found" };
-  const handler = await db.handler.findFirst({ where: { id: handlerId, operatorId: user.operatorId } });
+  const handler = await db.handler.findFirst({
+    where: { id: handlerId, operatorId: user.operatorId },
+  });
   if (!handler) return { error: "Handler not found" };
 
-  await db.handlerRequest.create({
+  const inviteToken = generateInviteToken();
+  const handlerRequest = await db.handlerRequest.create({
     data: {
       flightId,
       handlerId,
       airport,
-      inviteToken: generateInviteToken(),
+      inviteToken,
       inviteExpiresAt: inviteExpiryDate(),
       services: {
         create: DEFAULT_SERVICE_TYPES.map((t) => ({ type: t })),
       },
     },
+    include: { services: true },
   });
+
+  // Best-effort email — never fail the action if Resend is unavailable.
+  if (handler.email) {
+    const inviteUrl = `${APP_BASE_URL}/invite/${inviteToken}`;
+    const send = await sendHandlerInvite(handler.email, {
+      handlerName: handler.name,
+      operatorName: flight.operator.name,
+      flight: {
+        tailNumber: flight.tailNumber,
+        originIcao: flight.originIcao,
+        destIcao: flight.destIcao,
+        etdUtc: flight.etdUtc,
+        aircraftType: flight.aircraftType,
+        pax: flight.pax,
+      },
+      airport,
+      services: handlerRequest.services.map((s) => s.type),
+      inviteUrl,
+    });
+    if (!send.ok) {
+      console.error(
+        `[invite] Failed to send invite email to ${handler.email}: ${send.error}`,
+      );
+    }
+  }
+
   revalidatePath(`/app/flights/${flightId}`);
   return { error: null };
 }
