@@ -65,6 +65,7 @@ model User {
   crewMemberId  String?            @unique
   crewMember    CrewMember?        @relation(fields: [crewMemberId], references: [id])
   statusChanges ServiceStatusLog[]
+  messages      FlightMessage[]
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
@@ -87,6 +88,7 @@ model Flight {
   status          FlightStatus     @default(DRAFT)
   crewAssignments CrewAssignment[]
   handlerRequests HandlerRequest[]
+  messages        FlightMessage[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -180,4 +182,16 @@ model ServiceStatusLog {
   changedBy         User           @relation(fields: [changedByUserId], references: [id])
 
   @@index([serviceRequestId])
+}
+
+model FlightMessage {
+  id        String   @id @default(cuid())
+  flightId  String
+  flight    Flight   @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([flightId, createdAt])
 }
