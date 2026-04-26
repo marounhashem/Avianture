@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { FlightHeader } from "@/components/flights/flight-header";
 import { HandlerStatusList } from "@/components/flights/handler-status-list";
 import { StatusTimeline } from "@/components/flights/status-timeline";
+import { FlightThread } from "@/components/flights/flight-thread";
 import { MyAssignmentPanel } from "@/components/schedule/my-assignment-panel";
 
 export default async function CrewFlightDetail({
@@ -82,6 +83,8 @@ export default async function CrewFlightDetail({
       <HandlerStatusList requests={flight.handlerRequests} />
 
       <StatusTimeline logs={allLogs} />
+
+      <FlightThread flightId={flight.id} currentUserId={user.id} />
 
       <AutoRefresh />
     </div>

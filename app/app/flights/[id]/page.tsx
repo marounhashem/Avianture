@@ -5,6 +5,7 @@ import { CrewSection } from "@/components/flights/crew-section";
 import { HandlerSection } from "@/components/flights/handler-section";
 import { StatusTimeline } from "@/components/flights/status-timeline";
 import { FlightHeader } from "@/components/flights/flight-header";
+import { FlightThread } from "@/components/flights/flight-thread";
 import { headers } from "next/headers";
 
 export default async function FlightDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -53,6 +54,8 @@ export default async function FlightDetail({ params }: { params: Promise<{ id: s
       />
 
       <StatusTimeline logs={allLogs} />
+
+      <FlightThread flightId={flight.id} currentUserId={user.id} />
 
       <AutoRefresh />
     </div>
