@@ -2,11 +2,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Plane, Users, Building2, LayoutDashboard, CircleUser, LogOut, CalendarDays } from "lucide-react";
+import { Plane, Users, Building2, LayoutDashboard, CircleUser, LogOut, CalendarDays, Home } from "lucide-react";
 
 type Item = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
 const operatorItems: Item[] = [
+  { href: "/app",           label: "Home",      icon: Home },
   { href: "/app/flights",   label: "Flights",   icon: Plane },
   { href: "/app/crew",      label: "Crew",      icon: Users },
   { href: "/app/handlers",  label: "Handlers",  icon: Building2 },
@@ -33,7 +34,8 @@ export function Sidebar({ role, userName }: { role: "OPERATOR" | "HANDLER" | "CR
       </div>
       <nav className="flex-1 px-3 space-y-1">
         {items.map(({ href, label, icon: Icon }) => {
-          const active = pathname.startsWith(href);
+          // Exact match for /app (the Home item) so it isn't always active.
+          const active = href === "/app" ? pathname === "/app" : pathname.startsWith(href);
           return (
             <Link
               key={href}
