@@ -139,7 +139,7 @@ export function AirportPicker({
           aria-expanded={open}
           aria-controls={`${id}-listbox`}
           maxLength={60}
-          className="w-full rounded-md border border-navy-700 bg-navy-950 px-3 py-2 pr-9 font-mono text-sm uppercase outline-none focus:border-amber-500"
+          className="w-full rounded-md border border-navy-700 bg-navy-950 px-3 py-2 pr-9 font-mono text-sm uppercase outline-none focus:border-amber-500 placeholder:font-sans placeholder:normal-case placeholder:text-slate-500"
         />
         {value ? (
           <button

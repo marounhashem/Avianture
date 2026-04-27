@@ -103,63 +103,60 @@ export function NewFlightForm() {
           name="originIcao"
           required
           onChange={setOriginIcao}
-          placeholder="Type city, country, or ICAO..."
+          placeholder="City or ICAO..."
         />
         <AirportPicker
           label="Destination"
           name="destIcao"
           required
           onChange={setDestIcao}
-          placeholder="Type city, country, or ICAO..."
+          placeholder="City or ICAO..."
         />
       </div>
 
       {/* Times */}
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-start gap-3">
-        <TimeField
-          label="ETD (UTC)"
-          name="etdUtc"
-          required
-          value={etdUtc}
-          onChange={setEtdUtc}
-          localPreview={
-            etdDate && originIcao
-              ? `${formatInZone(etdDate, originTz)} (${originAirport?.city ?? originIcao})`
-              : null
-          }
-        />
-        <div className="hidden md:flex flex-col items-center justify-center pt-7">
-          <ArrowRight className="h-4 w-4 text-slate-500" />
-          <span className="mt-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-300 whitespace-nowrap">
-            {duration ? duration : "Flight time"}
-          </span>
+      <div className="space-y-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <TimeField
+            label="ETD (UTC)"
+            name="etdUtc"
+            required
+            value={etdUtc}
+            onChange={setEtdUtc}
+            localPreview={
+              etdDate && originIcao
+                ? `${formatInZone(etdDate, originTz)} (${originAirport?.city ?? originIcao})`
+                : null
+            }
+          />
+          <TimeField
+            label="ETA (UTC)"
+            name="etaUtc"
+            required
+            value={etaUtc}
+            onChange={setEtaUtc}
+            min={etdUtc || undefined}
+            error={etaBeforeEtd ? "ETA must be after ETD (UTC)." : undefined}
+            localPreview={
+              etaDate && destIcao
+                ? `${formatInZone(etaDate, destTz)} (${destAirport?.city ?? destIcao})`
+                : null
+            }
+          />
         </div>
-        <TimeField
-          label="ETA (UTC)"
-          name="etaUtc"
-          required
-          value={etaUtc}
-          onChange={setEtaUtc}
-          min={etdUtc || undefined}
-          error={
-            etaBeforeEtd ? "ETA must be after ETD (UTC)." : undefined
-          }
-          localPreview={
-            etaDate && destIcao
-              ? `${formatInZone(etaDate, destTz)} (${destAirport?.city ?? destIcao})`
-              : null
-          }
-        />
-      </div>
 
-      {/* Mobile-only duration row, since the centered column is hidden on small screens */}
-      {duration && (
-        <div className="md:hidden text-center">
-          <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-300">
-            Flight time {duration}
-          </span>
-        </div>
-      )}
+        {/* Centered duration row, only when both times are valid + ETA > ETD */}
+        {duration && (
+          <div className="flex items-center gap-3 text-xs text-slate-500">
+            <span className="h-px flex-1 bg-navy-700" />
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-medium text-amber-300">
+              <ArrowRight className="h-3 w-3" />
+              Flight time {duration}
+            </span>
+            <span className="h-px flex-1 bg-navy-700" />
+          </div>
+        )}
+      </div>
 
       <Field label="PAX" name="pax" type="number" min={0} max={500} required />
       <Field
