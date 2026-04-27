@@ -1,6 +1,7 @@
 "use server";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireOperator } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { generateInviteToken, inviteExpiryDate } from "@/lib/invites/tokens";
@@ -102,6 +103,91 @@ export async function inviteHandlerAction(formData: FormData) {
 
   revalidatePath(`/app/flights/${flightId}`);
   return { error: null };
+}
+
+const createAndInviteSchema = z.object({
+  flightId: z.string(),
+  airport: z.string().min(2).max(10),
+  name: z.string().min(2).max(80),
+  email: z.string().email().optional().or(z.literal("")),
+  company: z.string().max(80).optional().or(z.literal("")),
+});
+
+/**
+ * One-click "create handler + invite for this flight" used from the inline
+ * form in <HandlerSection /> when the operator picks "+ New handler" on the
+ * dropdown. The new handler's `airports[]` is pre-populated with the airport
+ * we're inviting them for, so subsequent invites filter cleanly.
+ */
+export async function createAndInviteHandlerAction(formData: FormData) {
+  const user = await requireOperator();
+  const parsed = createAndInviteSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { error: "Invalid input" };
+  }
+  const { flightId, airport, name, email, company } = parsed.data;
+
+  const flight = await db.flight.findFirst({
+    where: { id: flightId, operatorId: user.operatorId },
+    include: { operator: true },
+  });
+  if (!flight) return { error: "Flight not found" };
+
+  // 1) Create the handler with the airport pre-populated
+  const handler = await db.handler.create({
+    data: {
+      operatorId: user.operatorId,
+      name,
+      email: email || null,
+      company: company || null,
+      airports: [airport.toUpperCase()],
+    },
+  });
+
+  // 2) Create the HandlerRequest + service requests
+  const inviteToken = generateInviteToken();
+  const handlerRequest = await db.handlerRequest.create({
+    data: {
+      flightId,
+      handlerId: handler.id,
+      airport,
+      inviteToken,
+      inviteExpiresAt: inviteExpiryDate(),
+      services: {
+        create: DEFAULT_SERVICE_TYPES.map((t) => ({ type: t })),
+      },
+    },
+    include: { services: true },
+  });
+
+  // 3) Best-effort email
+  if (handler.email) {
+    const inviteUrl = `${APP_BASE_URL}/invite/${inviteToken}`;
+    const send = await sendHandlerInvite(handler.email, {
+      handlerName: handler.name,
+      operatorName: flight.operator.name,
+      flight: {
+        tailNumber: flight.tailNumber,
+        originIcao: flight.originIcao,
+        destIcao: flight.destIcao,
+        etdUtc: flight.etdUtc,
+        aircraftType: flight.aircraftType,
+        pax: flight.pax,
+      },
+      airport,
+      services: handlerRequest.services.map((s) => s.type),
+      inviteUrl,
+    });
+    if (!send.ok) {
+      console.error(
+        `[invite:create] Failed to send invite email to ${handler.email}: ${send.error}`,
+      );
+    }
+  }
+
+  revalidatePath(`/app/flights/${flightId}`);
+  // Drop the ?newHandler query param so the inline form collapses
+  redirect(`/app/flights/${flightId}`);
 }
 
 const resolveIssueSchema = z.object({

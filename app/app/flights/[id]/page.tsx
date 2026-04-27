@@ -14,10 +14,10 @@ export default async function FlightDetail({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ edit?: string }>;
+  searchParams: Promise<{ edit?: string; newHandler?: string }>;
 }) {
   const { id } = await params;
-  const { edit } = await searchParams;
+  const { edit, newHandler } = await searchParams;
   const user = await requireOperator();
   const flight = await db.flight.findFirst({
     where: { id, operatorId: user.operatorId },
@@ -37,9 +37,27 @@ export default async function FlightDetail({
 
   await markFlightSeen(user.id, flight.id);
 
-  const [availableCrew, availableHandlers] = await Promise.all([
-    db.crewMember.findMany({ where: { operatorId: user.operatorId }, orderBy: { name: "asc" } }),
-    db.handler.findMany({ where: { operatorId: user.operatorId }, orderBy: { name: "asc" } }),
+  // Filter handlers by airport coverage. Include handlers whose airports[]
+  // contains the relevant ICAO, plus handlers with no airports specified
+  // (legacy / unspecified — operator can still pick them).
+  const handlerWhere = (icao: string) => ({
+    operatorId: user.operatorId,
+    OR: [{ airports: { has: icao } }, { airports: { isEmpty: true } }],
+  });
+
+  const [availableCrew, originHandlers, destHandlers] = await Promise.all([
+    db.crewMember.findMany({
+      where: { operatorId: user.operatorId },
+      orderBy: { name: "asc" },
+    }),
+    db.handler.findMany({
+      where: handlerWhere(flight.originIcao),
+      orderBy: { name: "asc" },
+    }),
+    db.handler.findMany({
+      where: handlerWhere(flight.destIcao),
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   const h = await headers();
@@ -61,7 +79,9 @@ export default async function FlightDetail({
         origin={flight.originIcao}
         dest={flight.destIcao}
         requests={flight.handlerRequests}
-        availableHandlers={availableHandlers}
+        originHandlers={originHandlers}
+        destHandlers={destHandlers}
+        newHandlerForAirport={newHandler}
         baseUrl={baseUrl}
       />
 
