@@ -574,6 +574,37 @@ export const AIRPORTS_BY_CITY: Record<string, Airport[]> = {
   Nadi: [{ icao: "NFFN", name: "Nadi International" }],
 };
 
+/** A "fully resolved" airport with its city + country attached, suitable for search. */
+export type FullAirport = Airport & { city: string; country: string };
+
+function buildAllAirports(): FullAirport[] {
+  const cityToCountry = new Map<string, string>();
+  for (const [country, cities] of Object.entries(CITIES_BY_COUNTRY)) {
+    for (const c of cities) cityToCountry.set(c, country);
+  }
+  const out: FullAirport[] = [];
+  const seen = new Set<string>();
+  for (const [city, airports] of Object.entries(AIRPORTS_BY_CITY)) {
+    const country = cityToCountry.get(city) ?? "";
+    for (const a of airports) {
+      if (seen.has(a.icao)) continue;
+      seen.add(a.icao);
+      out.push({ ...a, city, country });
+    }
+  }
+  return out.sort((a, b) => a.icao.localeCompare(b.icao));
+}
+
+/** All curated airports, alphabetized by ICAO. */
+export const ALL_AIRPORTS: FullAirport[] = buildAllAirports();
+
+/** Look up a single airport by its ICAO code (case-insensitive). */
+export function findAirport(icao: string | null | undefined): FullAirport | null {
+  if (!icao) return null;
+  const upper = icao.trim().toUpperCase();
+  return ALL_AIRPORTS.find((a) => a.icao === upper) ?? null;
+}
+
 /**
  * Returns the airport list for a given city/country combination:
  *   - city present and known → its airports
