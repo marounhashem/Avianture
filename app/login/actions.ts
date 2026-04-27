@@ -18,7 +18,11 @@ export async function loginAction(formData: FormData) {
     email: formData.get("email"),
     password: formData.get("password"),
   });
-  if (!parsed.success) return { error: "Invalid input" };
+  if (!parsed.success) {
+    redirect("/login?error=invalid-input");
+  }
+
+  let credentialsFailed = false;
   try {
     await signIn("credentials", { ...parsed.data, redirectTo: "/app" });
   } catch (e: unknown) {
@@ -28,11 +32,16 @@ export async function loginAction(formData: FormData) {
       "type" in e &&
       (e as { type: string }).type === "CredentialsSignin"
     ) {
-      return { error: "Invalid email or password" };
+      credentialsFailed = true;
+    } else {
+      // Re-throw NEXT_REDIRECT (success path) and any unknown errors
+      throw e;
     }
-    throw e;
   }
-  return { error: null };
+
+  if (credentialsFailed) {
+    redirect("/login?error=invalid-credentials");
+  }
 }
 
 export async function requestMagicLinkAction(formData: FormData) {

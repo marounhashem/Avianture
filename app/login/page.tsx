@@ -2,6 +2,9 @@ import Link from "next/link";
 import { loginAction, requestMagicLinkAction } from "./actions";
 
 const errorMessages: Record<string, string> = {
+  "invalid-input": "Please enter a valid email and password.",
+  "invalid-credentials":
+    "That email and password don't match. Check both and try again — passwords are case-sensitive.",
   "invalid-email": "Please enter a valid email address.",
   "send-failed": "Couldn't send the sign-in email. Try the password form instead.",
   "invalid-link": "That sign-in link is missing details. Request a new one.",

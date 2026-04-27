@@ -18,8 +18,9 @@ export default async function AppIndex() {
     redirect("/app/account");
   }
 
-  // Operator workspace + flights
-  const [operator, flights] = await Promise.all([
+  // Run all 3 independent queries in parallel — operator + flights + recentMessages
+  // don't depend on each other. lastSeenMap needs flight IDs so it has to wait.
+  const [operator, flights, recentMessages] = await Promise.all([
     db.operator.findUnique({ where: { id: user.operatorId } }),
     db.flight.findMany({
       where: { operatorId: user.operatorId },
@@ -31,14 +32,24 @@ export default async function AppIndex() {
       },
       orderBy: { etdUtc: "asc" },
     }),
+    db.flightMessage.findMany({
+      where: { flight: { operatorId: user.operatorId } },
+      include: {
+        author: true,
+        flight: { select: { id: true, tailNumber: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
   ]);
 
+  // lastSeenMap depends on the flight IDs, so it has to follow the parallel block.
   const seen = await lastSeenMap(
     user.id,
     flights.map((f) => f.id),
   );
 
-  // Aggregate stats
+  // Aggregate stats from already-fetched flight data (no extra queries)
   let unread = 0;
   let issues = 0;
   let pending = 0;
@@ -49,17 +60,6 @@ export default async function AppIndex() {
     ).length;
     pending += f.handlerRequests.filter((r) => !r.inviteAcceptedAt).length;
   }
-
-  // Recent thread messages across all the operator's flights
-  const recentMessages = await db.flightMessage.findMany({
-    where: { flight: { operatorId: user.operatorId } },
-    include: {
-      author: true,
-      flight: { select: { id: true, tailNumber: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-  });
 
   // Upcoming flights (next 3, etd >= now)
   const now = new Date();
