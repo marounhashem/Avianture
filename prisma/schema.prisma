@@ -146,6 +146,9 @@ model Handler {
   name       String
   company    String?
   email      String?
+  city       String?
+  country    String?
+  airports   String[]         @default([])
   users      User[]
   requests   HandlerRequest[]
   createdAt  DateTime         @default(now())
