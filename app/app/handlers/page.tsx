@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireOperator } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { createHandlerAction, updateHandlerAction } from "./actions";
+import { COUNTRIES, CITIES } from "@/lib/data/locations";
 
 export default async function HandlersPage({
   searchParams,
@@ -25,6 +26,18 @@ export default async function HandlersPage({
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 md:px-8 md:py-10 space-y-6">
+      {/* Shared datalists for city + country autocomplete (used by both create + edit forms) */}
+      <datalist id="city-list">
+        {CITIES.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+      <datalist id="country-list">
+        {COUNTRIES.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+
       <h1 className="text-2xl font-semibold tracking-tight">Handlers</h1>
 
       {errorText && (
@@ -43,8 +56,13 @@ export default async function HandlersPage({
           <Field name="name" label="Name" required placeholder="LCLK FBO Larnaca" />
           <Field name="company" label="Company" placeholder="Cyprus Handling" />
           <Field name="email" label="Email" type="email" placeholder="ops@example.com" />
-          <Field name="city" label="City" placeholder="Larnaca" />
-          <Field name="country" label="Country" placeholder="Cyprus" />
+          <Field name="city" label="City" placeholder="Larnaca" list="city-list" />
+          <Field
+            name="country"
+            label="Country"
+            placeholder="Cyprus"
+            list="country-list"
+          />
           <Field
             name="airports"
             label="Airports (ICAO)"
@@ -91,11 +109,17 @@ export default async function HandlersPage({
                       type="email"
                       defaultValue={h.email ?? ""}
                     />
-                    <Field name="city" label="City" defaultValue={h.city ?? ""} />
+                    <Field
+                      name="city"
+                      label="City"
+                      defaultValue={h.city ?? ""}
+                      list="city-list"
+                    />
                     <Field
                       name="country"
                       label="Country"
                       defaultValue={h.country ?? ""}
+                      list="country-list"
                     />
                     <Field
                       name="airports"
@@ -179,6 +203,7 @@ function Field({
   type,
   placeholder,
   defaultValue,
+  list,
 }: {
   name: string;
   label: string;
@@ -186,23 +211,29 @@ function Field({
   type?: string;
   placeholder?: string;
   defaultValue?: string;
+  list?: string;
 }) {
+  // The id needs to be unique per instance because the same Field is rendered
+  // multiple times on the page (create form + each edit form).
+  const inputId = `field-${name}-${defaultValue ?? "new"}`;
   return (
     <div className="space-y-1">
       <label
-        htmlFor={name}
+        htmlFor={inputId}
         className="block text-xs font-medium text-slate-400"
       >
         {label}
         {required && <span className="ml-1 text-red-400">*</span>}
       </label>
       <input
-        id={name}
+        id={inputId}
         name={name}
         type={type ?? "text"}
         required={required}
         placeholder={placeholder}
         defaultValue={defaultValue}
+        list={list}
+        autoComplete="off"
         className="w-full rounded-md border border-navy-700 bg-navy-950 px-3 py-2 text-sm outline-none focus:border-amber-500"
       />
     </div>
