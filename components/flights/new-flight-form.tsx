@@ -1,7 +1,11 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { ArrowRight } from "lucide-react";
-import { createFlightAction } from "@/app/app/flights/new/actions";
+import {
+  createFlightAction,
+  createFlightInitialState,
+} from "@/app/app/flights/new/actions";
 import { AirportPicker } from "@/components/shared/airport-picker";
 import { getTimezoneForIcao, findAirport } from "@/lib/data/locations";
 
@@ -59,6 +63,10 @@ export function NewFlightForm() {
   const [destIcao, setDestIcao] = useState("");
   const [etdUtc, setEtdUtc] = useState("");
   const [etaUtc, setEtaUtc] = useState("");
+  const [state, formAction] = useActionState(
+    createFlightAction,
+    createFlightInitialState,
+  );
 
   const originTz = getTimezoneForIcao(originIcao);
   const destTz = getTimezoneForIcao(destIcao);
@@ -80,7 +88,7 @@ export function NewFlightForm() {
 
   return (
     <form
-      action={createFlightAction as unknown as (fd: FormData) => void}
+      action={formAction}
       className="space-y-4 rounded-lg border border-navy-700 bg-navy-900 p-6"
     >
       <Field
@@ -165,14 +173,30 @@ export function NewFlightForm() {
         placeholder="Charter / VIP / Medical"
       />
 
-      <button
-        type="submit"
-        disabled={etaBeforeEtd}
-        className="w-full rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-navy-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        Create flight
-      </button>
+      {state.error && (
+        <p
+          role="alert"
+          className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+        >
+          {state.error}
+        </p>
+      )}
+
+      <SubmitButton disabledReason={etaBeforeEtd} />
     </form>
+  );
+}
+
+function SubmitButton({ disabledReason }: { disabledReason: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={disabledReason || pending}
+      className="w-full rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-navy-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {pending ? "Creating..." : "Create flight"}
+    </button>
   );
 }
 

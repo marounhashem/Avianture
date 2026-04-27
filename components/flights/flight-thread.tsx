@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import {
-  postMessageAction,
   editMessageAction,
   deleteMessageAction,
 } from "@/lib/messages/actions";
 import { parseMentions } from "@/lib/messages/mentions";
 import { getInterestedUsers } from "@/lib/flights/interested-users";
 import { cn } from "@/lib/utils";
+import { NewMessageForm } from "@/components/flights/new-message-form";
 
 export async function FlightThread({
   flightId,
@@ -162,26 +162,7 @@ export async function FlightThread({
           );
         })}
       </ul>
-      <form
-        action={postMessageAction as unknown as (fd: FormData) => void}
-        className="space-y-2"
-      >
-        <input type="hidden" name="flightId" value={flightId} />
-        <textarea
-          name="body"
-          required
-          maxLength={2000}
-          rows={2}
-          placeholder="Type a message..."
-          className="w-full rounded-md border border-navy-700 bg-navy-950 px-3 py-2 text-sm outline-none focus:border-amber-500"
-        />
-        <button
-          type="submit"
-          className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-navy-950 hover:bg-amber-400"
-        >
-          Send
-        </button>
-      </form>
+      <NewMessageForm flightId={flightId} />
     </section>
   );
 }

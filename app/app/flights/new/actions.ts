@@ -37,7 +37,14 @@ function parseAsUtc(value: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export async function createFlightAction(formData: FormData) {
+export type CreateFlightState = { error: string | null };
+
+export const createFlightInitialState: CreateFlightState = { error: null };
+
+export async function createFlightAction(
+  _prevState: CreateFlightState,
+  formData: FormData,
+): Promise<CreateFlightState> {
   const user = await requireOperator();
   const parsed = schema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {

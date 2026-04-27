@@ -1,18 +1,39 @@
 import NextAuth, { type DefaultSession } from "next-auth";
+import "next-auth/jwt";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { verifyPassword } from "./password";
 
+type AppRole = "OPERATOR" | "CREW" | "HANDLER";
+
 declare module "next-auth" {
+  interface User {
+    id: string;
+    role: AppRole;
+    operatorId: string | null;
+    handlerId: string | null;
+    crewMemberId: string | null;
+  }
+
   interface Session {
     user: DefaultSession["user"] & {
       id: string;
-      role: "OPERATOR" | "CREW" | "HANDLER";
-      operatorId?: string | null;
-      handlerId?: string | null;
-      crewMemberId?: string | null;
+      role: AppRole;
+      operatorId: string | null;
+      handlerId: string | null;
+      crewMemberId: string | null;
     };
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    role: AppRole;
+    operatorId: string | null;
+    handlerId: string | null;
+    crewMemberId: string | null;
   }
 }
 
@@ -30,7 +51,7 @@ function userToSession(user: {
   id: string;
   email: string;
   name: string;
-  role: "OPERATOR" | "CREW" | "HANDLER";
+  role: AppRole;
   operatorId: string | null;
   handlerId: string | null;
   crewMemberId: string | null;
@@ -53,26 +74,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Credentials({
       credentials: { email: {}, password: {}, magicToken: {} },
       authorize: async (creds) => {
-        // Path A: magic-link token
+        // Path A: magic-link token (atomic claim — single updateMany prevents
+        // a check-then-update race where two concurrent requests with the same
+        // token both pass `used === false` and both succeed).
         const magic = magicSchema.safeParse(creds);
         if (magic.success) {
           const { email, magicToken } = magic.data;
-          const tokenRow = await db.magicLinkToken.findUnique({
-            where: { token: magicToken },
-          });
-          if (!tokenRow) return null;
-          if (tokenRow.used) return null;
-          if (tokenRow.expiresAt < new Date()) return null;
-          if (tokenRow.email !== email.toLowerCase()) return null;
-          const user = await db.user.findUnique({
-            where: { email: email.toLowerCase() },
-          });
-          if (!user) return null;
-          await db.magicLinkToken.update({
-            where: { id: tokenRow.id },
+          const normalizedEmail = email.toLowerCase();
+          const claim = await db.magicLinkToken.updateMany({
+            where: {
+              token: magicToken,
+              used: false,
+              expiresAt: { gt: new Date() },
+              email: normalizedEmail,
+            },
             data: { used: true },
           });
-          return userToSession(user) as any;
+          if (claim.count !== 1) return null;
+          const user = await db.user.findUnique({
+            where: { email: normalizedEmail },
+          });
+          if (!user) return null;
+          return userToSession(user);
         }
 
         // Path B: email + password
@@ -84,7 +107,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           if (!user) return null;
           const ok = await verifyPassword(pw.data.password, user.passwordHash);
           if (!ok) return null;
-          return userToSession(user) as any;
+          return userToSession(user);
         }
 
         return null;
@@ -94,21 +117,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = (user as any).id;
-        token.role = (user as any).role;
-        token.operatorId = (user as any).operatorId ?? null;
-        token.handlerId = (user as any).handlerId ?? null;
-        token.crewMemberId = (user as any).crewMemberId ?? null;
+        token.id = user.id;
+        token.role = user.role;
+        token.operatorId = user.operatorId ?? null;
+        token.handlerId = user.handlerId ?? null;
+        token.crewMemberId = user.crewMemberId ?? null;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).operatorId = token.operatorId ?? null;
-        (session.user as any).handlerId = token.handlerId ?? null;
-        (session.user as any).crewMemberId = token.crewMemberId ?? null;
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.operatorId = token.operatorId ?? null;
+        session.user.handlerId = token.handlerId ?? null;
+        session.user.crewMemberId = token.crewMemberId ?? null;
       }
       return session;
     },

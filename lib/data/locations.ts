@@ -345,7 +345,7 @@ export const AIRPORTS_BY_CITY: Record<string, Airport[]> = {
   ],
   Milan: [
     { icao: "LIMC", name: "Malpensa" },
-    { icao: "LIPZ", name: "Linate" },
+    { icao: "LIML", name: "Linate" },
   ],
   Venice: [{ icao: "LIPZ", name: "Venice Marco Polo" }],
   Florence: [{ icao: "LIRQ", name: "Florence" }],
