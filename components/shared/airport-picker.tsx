@@ -10,6 +10,8 @@ type Props = {
   required?: boolean;
   defaultValue?: string;
   placeholder?: string;
+  /** Fires whenever the resolved 4-char ICAO changes (or empties). */
+  onChange?: (icao: string) => void;
 };
 
 /**
@@ -26,6 +28,7 @@ export function AirportPicker({
   required,
   defaultValue,
   placeholder,
+  onChange,
 }: Props) {
   const id = useId();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -71,6 +74,7 @@ export function AirportPicker({
     setQuery(airport.icao);
     setOpen(false);
     inputRef.current?.blur();
+    onChange?.(airport.icao);
   }
 
   function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -117,13 +121,13 @@ export function AirportPicker({
           onChange={(e) => {
             const raw = e.target.value;
             setQuery(raw);
-            // Only sync `value` if the typed text could be a valid 4-char ICAO
-            // (otherwise the input shows the search query while the form value stays last-picked)
             const upper = raw.trim().toUpperCase();
             if (/^[A-Z0-9]{4}$/.test(upper)) {
               setValue(upper);
+              onChange?.(upper);
             } else {
-              setValue(""); // invalidate until they pick or finish typing
+              setValue("");
+              onChange?.("");
             }
             if (!open) setOpen(true);
           }}
@@ -145,6 +149,7 @@ export function AirportPicker({
               setValue("");
               setQuery("");
               inputRef.current?.focus();
+              onChange?.("");
             }}
             aria-label="Clear"
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:text-amber-400"
