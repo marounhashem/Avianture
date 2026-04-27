@@ -44,13 +44,8 @@ export default async function HandlersPage({
           <Field name="name" label="Name" required placeholder="LCLK FBO Larnaca" />
           <Field name="company" label="Company" placeholder="Cyprus Handling" />
           <Field name="email" label="Email" type="email" placeholder="ops@example.com" />
-          {/* Country first, then City — City is filtered by the chosen country */}
+          {/* Country → City → Airports, all linked: city options filter by country, airport options filter by city */}
           <LocationFields />
-          <Field
-            name="airports"
-            label="Airports (ICAO)"
-            placeholder="LCLK, OMDB"
-          />
         </div>
         <div className="flex justify-end">
           <button
@@ -95,12 +90,7 @@ export default async function HandlersPage({
                     <LocationFields
                       defaultCountry={h.country ?? ""}
                       defaultCity={h.city ?? ""}
-                    />
-                    <Field
-                      name="airports"
-                      label="Airports (ICAO)"
-                      defaultValue={h.airports.join(", ")}
-                      placeholder="LCLK, OMDB"
+                      defaultAirports={h.airports}
                     />
                   </div>
                   <div className="flex items-center gap-2">

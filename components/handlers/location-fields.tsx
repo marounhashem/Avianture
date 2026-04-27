@@ -1,38 +1,48 @@
 "use client";
 import { useState } from "react";
 import { Combobox } from "@/components/shared/combobox";
+import { MultiCombobox } from "@/components/shared/multi-combobox";
 import {
   COUNTRIES,
   ALL_CITIES,
   CITIES_BY_COUNTRY,
+  getAirportsForLocation,
 } from "@/lib/data/locations";
 
 /**
- * Two linked comboboxes for the Handlers form:
- *   - Country (alphabetical, selectable from list or free text)
- *   - City    (filtered alphabetically by selected country, or all cities
- *             when no recognized country is selected)
+ * Three linked fields for the Handlers form:
+ *   1. Country  (alphabetical, free-text fallback)
+ *   2. City     (filtered by country)
+ *   3. Airports (multi-select chips, filtered by city/country)
  *
- * Both write their values into the parent <form> via standard input names
- * `country` and `city` respectively.
+ * Submits via standard form input names: `country`, `city`, `airports`
+ * (the airports field's hidden input is a comma-joined ICAO list, which
+ * the existing server-side parseAirports() already understands).
  */
 export function LocationFields({
   defaultCountry,
   defaultCity,
+  defaultAirports,
 }: {
   defaultCountry?: string;
   defaultCity?: string;
+  defaultAirports?: string[];
 }) {
   const [country, setCountry] = useState(defaultCountry ?? "");
   const [city, setCity] = useState(defaultCity ?? "");
+  const [airports, setAirports] = useState<string[]>(defaultAirports ?? []);
 
-  // Cities to suggest:
-  // - exact country match in our map → use those (alphabetical, curated)
-  // - otherwise → fall back to all known cities so user still gets type-ahead
+  // City suggestions: country-specific if known, else all cities.
   const cityOptions =
     country && CITIES_BY_COUNTRY[country]
       ? CITIES_BY_COUNTRY[country]
       : ALL_CITIES;
+
+  // Airport suggestions follow city (then country, then nothing).
+  const airportOptions = getAirportsForLocation(city, country).map((a) => ({
+    value: a.icao,
+    label: a.name,
+  }));
 
   return (
     <>
@@ -43,8 +53,7 @@ export function LocationFields({
         value={country}
         onChange={setCountry}
         onSelect={(picked) => {
-          // When user picks a country, clear city if it's no longer in the
-          // new country's list — saves them from a stale combo.
+          // Clear city if it no longer fits the new country
           if (city && CITIES_BY_COUNTRY[picked]) {
             if (!CITIES_BY_COUNTRY[picked].includes(city)) {
               setCity("");
@@ -60,6 +69,21 @@ export function LocationFields({
         value={city}
         onChange={setCity}
         placeholder="Larnaca"
+      />
+      <MultiCombobox
+        name="airports"
+        label="Airports (ICAO)"
+        values={airports}
+        onChange={setAirports}
+        options={airportOptions}
+        placeholder={
+          airportOptions.length > 0 ? "Pick or type ICAO..." : "Type ICAO..."
+        }
+        normalize={(raw) => {
+          // Free-text ICAO entries: 4-char alphanumeric, uppercased.
+          const upper = raw.trim().toUpperCase();
+          return /^[A-Z0-9]{4}$/.test(upper) ? upper : null;
+        }}
       />
     </>
   );
