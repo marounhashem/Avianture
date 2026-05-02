@@ -8,7 +8,13 @@ startCommand = "npm run start"
 # `prisma db push` is correct because this project has no prisma/migrations/ folder.
 # Seeding is intentionally NOT here — seed.ts deleteMany()s every table, so chaining it would
 # wipe the DB on every deploy. Run `railway run npm run db:seed` manually for one-off seeding.
-preDeployCommand = "npx prisma db execute --stdin <<'SQL'\nDO $ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'FO' AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'CrewRole')) THEN\n    ALTER TYPE \"CrewRole\" RENAME VALUE 'FO' TO 'SIC';\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'CABIN' AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'CrewRole')) THEN\n    ALTER TYPE \"CrewRole\" RENAME VALUE 'CABIN' TO 'FA';\n  END IF;\nEND $;\nSQL\nnpx prisma db push --accept-data-loss"
+#
+# The pre-step renames CrewRole enum values FO -> SIC and CABIN -> FA in place
+# (via prisma/sql/rename-crewrole.sql, idempotent), so existing CrewMember rows
+# survive the schema change. Without this, prisma db push would fail because
+# Postgres can't cast existing rows to the renamed enum type. See that file
+# for details.
+preDeployCommand = "npx prisma db execute --file prisma/sql/rename-crewrole.sql --schema prisma/schema.prisma && npx prisma db push --accept-data-loss"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 healthcheckPath = "/login"
