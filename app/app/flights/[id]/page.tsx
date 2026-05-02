@@ -66,7 +66,18 @@ export default async function FlightDetail({
   // internal Host is `localhost:<PORT>`, not the public domain.
   const baseUrl = APP_BASE_URL;
 
-  const allLogs = flight.handlerRequests.flatMap((hr) => hr.services.flatMap((s) => s.statusLogs));
+  // Enrich each status log with the service type, handler name, and airport
+  // so the Timeline can render the full context, not just from→to.
+  const allLogs = flight.handlerRequests.flatMap((hr) =>
+    hr.services.flatMap((s) =>
+      s.statusLogs.map((l) => ({
+        ...l,
+        serviceType: s.type,
+        handlerName: hr.handler.name,
+        airport: hr.airport,
+      })),
+    ),
+  );
   allLogs.sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime());
 
   return (

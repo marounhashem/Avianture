@@ -10,10 +10,34 @@ const ackSchema = z.object({ flightId: z.string() });
 export async function acknowledgeAssignmentAction(formData: FormData) {
   const user = await requireCrew();
   const { flightId } = ackSchema.parse(Object.fromEntries(formData));
+
+  // Only post a system message on the FIRST acknowledgment (the field is
+  // currently null). Re-clicking acknowledge on an already-acknowledged
+  // assignment is a no-op for the audit log.
+  const before = await db.crewAssignment.findFirst({
+    where: { flightId, crewMemberId: user.crewMemberId },
+    include: { crewMember: true },
+  });
+
   await db.crewAssignment.updateMany({
     where: { flightId, crewMemberId: user.crewMemberId },
     data: { acknowledgedAt: new Date() },
   });
+
+  if (before && !before.acknowledgedAt) {
+    const isPic = before.crewMember.role === "PIC";
+    await db.flightMessage.create({
+      data: {
+        flightId,
+        authorId: user.id,
+        body: isPic
+          ? `${before.crewMember.name} (PIC) acknowledged the assignment and now has service-edit permissions for this flight.`
+          : `${before.crewMember.name} (${before.crewMember.role}) acknowledged the assignment.`,
+        isSystem: true,
+      },
+    });
+  }
+
   revalidatePath(`/app/schedule/${flightId}`);
   revalidatePath(`/app/flights/${flightId}`);
   return { error: null };

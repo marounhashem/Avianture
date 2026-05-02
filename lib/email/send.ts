@@ -24,6 +24,10 @@ import {
   MessageMentionEmail,
   type MessageMentionEmailProps,
 } from "@/emails/message-mention";
+import {
+  CrewAssignmentEmail,
+  type CrewAssignmentEmailProps,
+} from "@/emails/crew-assignment";
 
 export async function sendHandlerInvite(
   to: string,
@@ -103,5 +107,16 @@ export async function sendMentionNotification(
     to,
     subject: `🔔 You were mentioned on flight ${props.flight.tailNumber}`,
     react: MessageMentionEmail(props),
+  });
+}
+
+export async function sendCrewAssignmentNotification(
+  to: string,
+  props: CrewAssignmentEmailProps,
+): Promise<SendResult> {
+  return sendEmail({
+    to,
+    subject: `Flight assignment — ${props.flight.tailNumber} (${props.crewRole})`,
+    react: CrewAssignmentEmail(props),
   });
 }

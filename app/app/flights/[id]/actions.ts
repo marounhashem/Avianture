@@ -2,14 +2,21 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireOperator } from "@/lib/auth/session";
+import {
+  requireAuth,
+  requireOperator,
+} from "@/lib/auth/session";
+import { canEditServicesForFlight } from "@/lib/auth/flight-access";
 import { db } from "@/lib/db";
 import { generateInviteToken, inviteExpiryDate } from "@/lib/invites/tokens";
 import {
   DEFAULT_SERVICE_TYPES,
   type ServiceType,
 } from "@/lib/flights/services";
-import { sendHandlerInvite } from "@/lib/email/send";
+import {
+  sendHandlerInvite,
+  sendCrewAssignmentNotification,
+} from "@/lib/email/send";
 import { APP_BASE_URL } from "@/lib/email/resend";
 import {
   notifyIssueResolved,
@@ -68,16 +75,67 @@ const appointCrewSchema = z.object({
 export async function appointCrewAction(formData: FormData) {
   const user = await requireOperator();
   const { flightId, crewMemberId } = appointCrewSchema.parse(Object.fromEntries(formData));
-  const flight = await db.flight.findFirst({ where: { id: flightId, operatorId: user.operatorId } });
+  const flight = await db.flight.findFirst({
+    where: { id: flightId, operatorId: user.operatorId },
+    include: { operator: true },
+  });
   if (!flight) return { error: "Flight not found" };
-  const crew = await db.crewMember.findFirst({ where: { id: crewMemberId, operatorId: user.operatorId } });
+  const crew = await db.crewMember.findFirst({
+    where: { id: crewMemberId, operatorId: user.operatorId },
+    include: { user: true },
+  });
   if (!crew) return { error: "Crew member not found" };
+
+  // Idempotent — if already assigned, the upsert no-ops. We only want to
+  // post the system message + email on a brand-new assignment, so check
+  // first.
+  const existing = await db.crewAssignment.findUnique({
+    where: { flightId_crewMemberId: { flightId, crewMemberId } },
+    select: { id: true },
+  });
+
   await db.crewAssignment.upsert({
     where: { flightId_crewMemberId: { flightId, crewMemberId } },
     update: {},
     create: { flightId, crewMemberId },
   });
+
+  if (!existing) {
+    // System message in the flight thread — audit log of the appointment.
+    await postSystemMessage({
+      flightId,
+      authorId: user.id,
+      body: `${user.name ?? "Operator"} appointed ${crew.name} as ${crew.role}.`,
+    });
+
+    // Email the crew member if they have a linked user account. PICs need to
+    // know specifically — they'll be granted service-edit permissions once
+    // they acknowledge the assignment.
+    if (crew.user?.email) {
+      try {
+        const scheduleUrl = `${APP_BASE_URL}/app/schedule/${flightId}`;
+        await sendCrewAssignmentNotification(crew.user.email, {
+          crewName: crew.name,
+          crewRole: crew.role,
+          operatorName: flight.operator.name,
+          flight: {
+            tailNumber: flight.tailNumber,
+            originIcao: flight.originIcao,
+            destIcao: flight.destIcao,
+            etdUtc: flight.etdUtc,
+          },
+          scheduleUrl,
+        });
+      } catch (e) {
+        console.error(
+          `[notify:crew-assignment] ${crew.user.email}: ${(e as Error).message}`,
+        );
+      }
+    }
+  }
+
   revalidatePath(`/app/flights/${flightId}`);
+  revalidatePath(`/app/schedule/${flightId}`);
   return { error: null };
 }
 
@@ -399,14 +457,19 @@ export async function resendHandlerInviteAction(formData: FormData) {
 }
 
 /**
- * Operator-side "edit any service status" action. Unlike the handler path
- * (which is forward-only via ALLOWED_TRANSITIONS), the operator gets free
- * any-to-any transitions — they can flip a COMPLETED back to PENDING if a
- * handler over-claimed, or mark a service NOT_REQUIRED at any time.
+ * Principal-side "edit any service status" action. Used by both operators
+ * and acknowledged PICs. Unlike the handler path (forward-only via
+ * ALLOWED_TRANSITIONS), principals get any-to-any transitions and can mark
+ * NOT_REQUIRED at any time.
  *
- * The change is logged to ServiceStatusLog with the operator's user id and
- * the note text at the moment of the change. Operators are then notified
- * (the existing notify path will email any other operators not viewing).
+ * Authorization is delegated to canEditServicesForFlight():
+ *  - OPERATOR who owns the flight  → allowed
+ *  - CREW with role=PIC and acknowledgedAt != null → allowed for THIS flight
+ *  - everyone else → forbidden
+ *
+ * Every change is logged to ServiceStatusLog with the user id and note text.
+ * The exported name is preserved for backward compatibility with importers
+ * (handler-section.tsx); the schedule page uses the same export.
  */
 const operatorUpdateSchema = z.object({
   flightId: z.string(),
@@ -422,19 +485,20 @@ const operatorUpdateSchema = z.object({
 });
 
 export async function operatorUpdateServiceStatusAction(formData: FormData) {
-  const user = await requireOperator();
+  const user = await requireAuth();
   const parsed = operatorUpdateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Invalid input" };
   const { flightId, serviceRequestId, toStatus, note } = parsed.data;
 
-  // Multi-tenant: confirm flight + service belong to this operator
+  const allowed = await canEditServicesForFlight(user, flightId);
+  if (!allowed) return { error: "Forbidden" };
+
+  // Confirm the service really belongs to this flight (defense-in-depth;
+  // a malicious payload could swap serviceRequestId across flights).
   const service = await db.serviceRequest.findFirst({
     where: {
       id: serviceRequestId,
-      handlerRequest: {
-        flightId,
-        flight: { operatorId: user.operatorId },
-      },
+      handlerRequest: { flightId },
     },
     include: { handlerRequest: true },
   });
@@ -463,7 +527,7 @@ export async function operatorUpdateServiceStatusAction(formData: FormData) {
   revalidatePath(`/app/hub/${flightId}`);
   revalidatePath(`/app/schedule/${flightId}`);
 
-  // Best-effort: notify other operators who aren't actively viewing.
+  // Best-effort: notify operators who aren't actively viewing.
   try {
     await notifyServiceStatusChanged({
       serviceRequestId,
@@ -472,7 +536,7 @@ export async function operatorUpdateServiceStatusAction(formData: FormData) {
       changedByUserId: user.id,
     });
   } catch (e) {
-    console.error("[notify:service:operator] orchestrator failed:", e);
+    console.error("[notify:service:principal] orchestrator failed:", e);
   }
 
   return { error: null };

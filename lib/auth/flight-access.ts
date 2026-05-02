@@ -42,3 +42,40 @@ export async function canAccessFlight(
   }
   return false;
 }
+
+/**
+ * True iff the user can edit handler service requests (status + note) for
+ * the given flight. Two paths:
+ *
+ * - OPERATOR who owns the flight (full power)
+ * - CREW with role=PIC, assigned to this flight, AND has acknowledged the
+ *   assignment. SIC and FA never qualify even if assigned.
+ *
+ * Used by the principal service-update action and to gate the edit UI on
+ * the schedule page.
+ */
+export async function canEditServicesForFlight(
+  user: SessionUser,
+  flightId: string,
+): Promise<boolean> {
+  if (user.role === "OPERATOR" && user.operatorId) {
+    const flight = await db.flight.findFirst({
+      where: { id: flightId, operatorId: user.operatorId },
+      select: { id: true },
+    });
+    return !!flight;
+  }
+  if (user.role === "CREW" && user.crewMemberId) {
+    const a = await db.crewAssignment.findFirst({
+      where: {
+        flightId,
+        crewMemberId: user.crewMemberId,
+        acknowledgedAt: { not: null },
+        crewMember: { role: "PIC" },
+      },
+      select: { id: true },
+    });
+    return !!a;
+  }
+  return false;
+}
