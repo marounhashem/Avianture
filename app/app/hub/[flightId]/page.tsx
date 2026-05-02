@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ServiceChecklist } from "@/components/handler-hub/service-checklist";
 import { FlightThread } from "@/components/flights/flight-thread";
 import { markFlightSeen } from "@/lib/flights/views";
+import { AutoRefresh } from "@/components/layout/auto-refresh";
 
 export default async function HubFlightPage({
   params,
@@ -44,15 +45,5 @@ export default async function HubFlightPage({
       />
       <AutoRefresh />
     </div>
-  );
-}
-
-function AutoRefresh() {
-  return (
-    <script
-      dangerouslySetInnerHTML={{
-        __html: `setTimeout(() => { if (document.visibilityState === 'visible') location.reload(); }, 5000);`,
-      }}
-    />
   );
 }

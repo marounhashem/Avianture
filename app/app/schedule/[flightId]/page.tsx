@@ -9,6 +9,7 @@ import { FlightThread } from "@/components/flights/flight-thread";
 import { MyAssignmentPanel } from "@/components/schedule/my-assignment-panel";
 import { PrincipalServiceRow } from "@/components/flights/principal-service-row";
 import { markFlightSeen } from "@/lib/flights/views";
+import { AutoRefresh } from "@/components/layout/auto-refresh";
 
 export default async function CrewFlightDetail({
   params,
@@ -155,15 +156,5 @@ export default async function CrewFlightDetail({
 
       <AutoRefresh />
     </div>
-  );
-}
-
-function AutoRefresh() {
-  return (
-    <script
-      dangerouslySetInnerHTML={{
-        __html: `setTimeout(() => { if (document.visibilityState === 'visible') location.reload(); }, 5000);`,
-      }}
-    />
   );
 }

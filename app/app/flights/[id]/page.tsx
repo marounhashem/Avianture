@@ -8,6 +8,7 @@ import { FlightHeader } from "@/components/flights/flight-header";
 import { FlightThread } from "@/components/flights/flight-thread";
 import { markFlightSeen } from "@/lib/flights/views";
 import { APP_BASE_URL } from "@/lib/email/resend";
+import { AutoRefresh } from "@/components/layout/auto-refresh";
 
 export default async function FlightDetail({
   params,
@@ -108,15 +109,5 @@ export default async function FlightDetail({
 
       <AutoRefresh />
     </div>
-  );
-}
-
-function AutoRefresh() {
-  return (
-    <script
-      dangerouslySetInnerHTML={{
-        __html: `setTimeout(() => { if (document.visibilityState === 'visible') location.reload(); }, 5000);`,
-      }}
-    />
   );
 }
