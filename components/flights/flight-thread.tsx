@@ -59,6 +59,24 @@ export async function FlightThread({
             );
           }
 
+          // System messages: audit events ("Operator X invited handler Y").
+          // Render compact, italicized, no edit/delete actions.
+          if (m.isSystem) {
+            return (
+              <li
+                key={m.id}
+                className="rounded-md border border-dashed border-navy-700/60 bg-navy-950/40 px-3 py-2"
+              >
+                <p className="text-xs text-slate-400 italic">
+                  <span className="text-slate-500">[system]</span> {m.body}
+                  <span className="ml-2 text-slate-600 not-italic">
+                    · {new Date(m.createdAt).toUTCString().slice(5, 22)} UTC
+                  </span>
+                </p>
+              </li>
+            );
+          }
+
           return (
             <li
               key={m.id}

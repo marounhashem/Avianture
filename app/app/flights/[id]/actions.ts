@@ -17,6 +17,26 @@ import {
 } from "@/lib/email/notify";
 
 /**
+ * Append a system message to the flight thread for audit purposes.
+ * System messages render differently from chat (greyed/italic) and can't be
+ * edited or deleted. Authored by the user who triggered the action.
+ */
+async function postSystemMessage(opts: {
+  flightId: string;
+  authorId: string;
+  body: string;
+}): Promise<void> {
+  await db.flightMessage.create({
+    data: {
+      flightId: opts.flightId,
+      authorId: opts.authorId,
+      body: opts.body,
+      isSystem: true,
+    },
+  });
+}
+
+/**
  * Reads which DEFAULT_SERVICE_TYPES are checked in the invite form, and the
  * optional note for each. Form fields:
  *   service-include-FUEL=on    (checkbox; absent when unchecked)
@@ -110,6 +130,13 @@ export async function inviteHandlerAction(formData: FormData) {
       },
     },
     include: { services: true },
+  });
+
+  // System message in the flight thread — audit log of who invited whom.
+  await postSystemMessage({
+    flightId,
+    authorId: user.id,
+    body: `${user.name ?? "Operator"} invited ${handler.name} as a handler for ${airport}.`,
   });
 
   // Best-effort email — never fail the action if Resend is unavailable.
@@ -220,6 +247,13 @@ export async function createAndInviteHandlerAction(formData: FormData) {
       },
     },
     include: { services: true },
+  });
+
+  // System message — audit log of who invited whom.
+  await postSystemMessage({
+    flightId,
+    authorId: user.id,
+    body: `${user.name ?? "Operator"} added and invited ${handler.name} as a handler for ${airport}.`,
   });
 
   // 3) Best-effort email — only list services the handler should act on.

@@ -112,8 +112,13 @@ export function HandlerSection({
               )}
               <div className="space-y-2">
                 {r.services.map((s) => (
+                  // Key includes status + note so that after a save the
+                  // entire form (and its uncontrolled <select> / <input>)
+                  // remounts with the new defaultValue. Otherwise React
+                  // reuses the DOM node and the dropdown shows the old
+                  // value even after the action persisted the new one.
                   <OperatorServiceRow
-                    key={s.id}
+                    key={`${s.id}-${s.status}-${s.note ?? ""}`}
                     flightId={flightId}
                     service={s}
                   />
@@ -125,18 +130,25 @@ export function HandlerSection({
       </div>
 
       <div className="mt-4 space-y-3">
-        <InvitePicker
-          flightId={flightId}
-          icao={origin}
-          handlers={originHandlers}
-          showNewForm={newHandlerForAirport === origin}
-        />
-        <InvitePicker
-          flightId={flightId}
-          icao={dest}
-          handlers={destHandlers}
-          showNewForm={newHandlerForAirport === dest}
-        />
+        {/* One handler per airport. If a request already exists for an
+            airport, the InvitePicker is suppressed — the operator must
+            cancel the existing invite before assigning a different one. */}
+        {!requests.some((r) => r.airport === origin) && (
+          <InvitePicker
+            flightId={flightId}
+            icao={origin}
+            handlers={originHandlers}
+            showNewForm={newHandlerForAirport === origin}
+          />
+        )}
+        {!requests.some((r) => r.airport === dest) && (
+          <InvitePicker
+            flightId={flightId}
+            icao={dest}
+            handlers={destHandlers}
+            showNewForm={newHandlerForAirport === dest}
+          />
+        )}
       </div>
     </section>
   );

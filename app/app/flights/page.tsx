@@ -51,7 +51,11 @@ export default async function FlightsPage({
     include: {
       handlerRequests: { include: { services: true } },
       crewAssignments: true,
-      messages: { select: { createdAt: true } },
+      // System messages don't count toward the per-flight unread badge.
+      messages: {
+        where: { isSystem: false, deletedAt: null },
+        select: { createdAt: true },
+      },
       _count: { select: { crewAssignments: true } },
     },
     orderBy: { etdUtc: "asc" },

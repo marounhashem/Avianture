@@ -41,6 +41,9 @@ export default async function MessagesPage() {
     where: {
       flight: { operatorId: user.operatorId },
       deletedAt: null,
+      // Exclude system audit events — they belong on the flight page, not in
+      // the personal inbox.
+      isSystem: false,
     },
     include: {
       author: { select: { id: true, name: true, role: true } },

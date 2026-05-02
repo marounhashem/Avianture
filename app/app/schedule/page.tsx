@@ -16,7 +16,10 @@ export default async function SchedulePage() {
     },
     include: {
       crewAssignments: { include: { crewMember: true } },
-      messages: { select: { createdAt: true } },
+      messages: {
+        where: { isSystem: false, deletedAt: null },
+        select: { createdAt: true },
+      },
     },
     orderBy: { etdUtc: "asc" },
   });

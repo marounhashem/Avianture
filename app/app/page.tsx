@@ -25,7 +25,12 @@ export default async function AppIndex() {
       include: {
         handlerRequests: { include: { services: true } },
         crewAssignments: true,
-        messages: { select: { createdAt: true } },
+        // Only chat messages count toward the "unread" KPI.
+        // System audit events live on the flight page, not in the inbox.
+        messages: {
+          where: { isSystem: false, deletedAt: null },
+          select: { createdAt: true },
+        },
         _count: { select: { crewAssignments: true } },
       },
       orderBy: { etdUtc: "asc" },

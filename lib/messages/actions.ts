@@ -72,11 +72,12 @@ export async function editMessageAction(formData: FormData) {
 
   const msg = await db.flightMessage.findUnique({
     where: { id: messageId },
-    select: { authorId: true, flightId: true, deletedAt: true },
+    select: { authorId: true, flightId: true, deletedAt: true, isSystem: true },
   });
   if (!msg) return { error: "Message not found" };
   if (msg.authorId !== user.id) return { error: "Forbidden" };
   if (msg.deletedAt) return { error: "Cannot edit a deleted message" };
+  if (msg.isSystem) return { error: "System messages can't be edited" };
 
   await db.flightMessage.update({
     where: { id: messageId },
@@ -99,11 +100,12 @@ export async function deleteMessageAction(formData: FormData) {
 
   const msg = await db.flightMessage.findUnique({
     where: { id: messageId },
-    select: { authorId: true, flightId: true, deletedAt: true },
+    select: { authorId: true, flightId: true, deletedAt: true, isSystem: true },
   });
   if (!msg) return { error: "Message not found" };
   if (msg.authorId !== user.id) return { error: "Forbidden" };
   if (msg.deletedAt) return { error: null }; // already deleted, idempotent
+  if (msg.isSystem) return { error: "System messages can't be deleted" };
 
   await db.flightMessage.update({
     where: { id: messageId },
