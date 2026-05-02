@@ -2,10 +2,11 @@
 import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ArrowRight } from "lucide-react";
-import {
-  createFlightAction,
-  createFlightInitialState,
-} from "@/app/app/flights/new/actions";
+import { createFlightAction } from "@/app/app/flights/new/actions";
+
+// Initial state for useActionState lives here (not in actions.ts), because
+// files with `"use server"` can only export async functions.
+const initialState: { error: string | null } = { error: null };
 import { AirportPicker } from "@/components/shared/airport-picker";
 import { getTimezoneForIcao, findAirport } from "@/lib/data/locations";
 
@@ -65,7 +66,7 @@ export function NewFlightForm() {
   const [etaUtc, setEtaUtc] = useState("");
   const [state, formAction] = useActionState(
     createFlightAction,
-    createFlightInitialState,
+    initialState,
   );
 
   const originTz = getTimezoneForIcao(originIcao);

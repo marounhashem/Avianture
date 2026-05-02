@@ -37,14 +37,16 @@ function parseAsUtc(value: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export type CreateFlightState = { error: string | null };
-
-export const createFlightInitialState: CreateFlightState = { error: null };
+// NOTE: Files with `"use server"` at the top can ONLY export async functions —
+// every top-level export is registered as a Server Action, and non-function
+// exports throw at runtime. So `CreateFlightState` and the initial state value
+// live in the client form component, not here. (Type exports are erased by
+// TS so they'd be harmless, but we keep them out for symmetry.)
 
 export async function createFlightAction(
-  _prevState: CreateFlightState,
+  _prevState: { error: string | null },
   formData: FormData,
-): Promise<CreateFlightState> {
+): Promise<{ error: string | null }> {
   const user = await requireOperator();
   const parsed = schema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
