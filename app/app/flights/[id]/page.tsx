@@ -7,7 +7,7 @@ import { StatusTimeline } from "@/components/flights/status-timeline";
 import { FlightHeader } from "@/components/flights/flight-header";
 import { FlightThread } from "@/components/flights/flight-thread";
 import { markFlightSeen } from "@/lib/flights/views";
-import { headers } from "next/headers";
+import { APP_BASE_URL } from "@/lib/email/resend";
 
 export default async function FlightDetail({
   params,
@@ -60,10 +60,11 @@ export default async function FlightDetail({
     }),
   ]);
 
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  const host = h.get("host") ?? "localhost:3000";
-  const baseUrl = `${proto}://${host}`;
+  // Use the same APP_BASE_URL source the invite emails use, so the link
+  // displayed in the UI matches the link the handler actually receives.
+  // Building from request headers fails on Railway because the container's
+  // internal Host is `localhost:<PORT>`, not the public domain.
+  const baseUrl = APP_BASE_URL;
 
   const allLogs = flight.handlerRequests.flatMap((hr) => hr.services.flatMap((s) => s.statusLogs));
   allLogs.sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime());
