@@ -22,6 +22,7 @@ const statusColor: Record<string, { bg: string; text: string; border: string }> 
   ACKNOWLEDGED: { bg: "#3B82F6/10", text: "#93C5FD", border: "#3B82F6" },
   IN_PROGRESS: { bg: "#F59E0B/10", text: "#FBBF24", border: "#F59E0B" },
   COMPLETED: { bg: "#10B981/10", text: "#6EE7B7", border: "#10B981" },
+  NOT_REQUIRED: { bg: "#0F172A", text: "#64748B", border: "#334155" },
 };
 
 function pretty(status: string) {

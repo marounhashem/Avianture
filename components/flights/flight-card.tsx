@@ -17,7 +17,12 @@ export function FlightCard({
   badges?: Badges;
 }) {
   const services = flight.handlerRequests.flatMap((h) => h.services);
-  const done = services.filter((s) => s.status === "COMPLETED").length;
+  // "Done" includes NOT_REQUIRED — a service that's been marked not-required
+  // is just as resolved as one the handler completed, from the operator's
+  // dashboard perspective.
+  const done = services.filter(
+    (s) => s.status === "COMPLETED" || s.status === "NOT_REQUIRED",
+  ).length;
   return (
     <Link
       href={`/app/flights/${flight.id}`}

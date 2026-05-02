@@ -5,10 +5,40 @@ import { redirect } from "next/navigation";
 import { requireOperator } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { generateInviteToken, inviteExpiryDate } from "@/lib/invites/tokens";
-import { DEFAULT_SERVICE_TYPES } from "@/lib/flights/services";
+import {
+  DEFAULT_SERVICE_TYPES,
+  type ServiceType,
+} from "@/lib/flights/services";
 import { sendHandlerInvite } from "@/lib/email/send";
 import { APP_BASE_URL } from "@/lib/email/resend";
-import { notifyIssueResolved } from "@/lib/email/notify";
+import {
+  notifyIssueResolved,
+  notifyServiceStatusChanged,
+} from "@/lib/email/notify";
+
+/**
+ * Reads which DEFAULT_SERVICE_TYPES are checked in the invite form, and the
+ * optional note for each. Form fields:
+ *   service-include-FUEL=on    (checkbox; absent when unchecked)
+ *   service-note-FUEL=...      (text input, optional)
+ *
+ * Returns one create record per service type. Unchecked services are still
+ * created so the operator can flip them back to PENDING later — they just
+ * start in NOT_REQUIRED so the handler doesn't see them as actionable.
+ */
+function buildServiceCreates(
+  formData: FormData,
+): { type: ServiceType; status: "PENDING" | "NOT_REQUIRED"; note: string | null }[] {
+  return DEFAULT_SERVICE_TYPES.map((t) => {
+    const included = formData.get(`service-include-${t}`) !== null;
+    const noteRaw = String(formData.get(`service-note-${t}`) ?? "").trim();
+    return {
+      type: t,
+      status: included ? "PENDING" : "NOT_REQUIRED",
+      note: noteRaw || null,
+    } as const;
+  });
+}
 
 const appointCrewSchema = z.object({
   flightId: z.string(),
@@ -61,6 +91,8 @@ export async function inviteHandlerAction(formData: FormData) {
   });
   if (!handler) return { error: "Handler not found" };
 
+  const serviceCreates = buildServiceCreates(formData);
+
   const inviteToken = generateInviteToken();
   const handlerRequest = await db.handlerRequest.create({
     data: {
@@ -70,15 +102,23 @@ export async function inviteHandlerAction(formData: FormData) {
       inviteToken,
       inviteExpiresAt: inviteExpiryDate(),
       services: {
-        create: DEFAULT_SERVICE_TYPES.map((t) => ({ type: t })),
+        create: serviceCreates.map((s) => ({
+          type: s.type,
+          status: s.status,
+          note: s.note,
+        })),
       },
     },
     include: { services: true },
   });
 
   // Best-effort email — never fail the action if Resend is unavailable.
+  // Only mention the services that the handler is actually expected to act on.
   if (handler.email) {
     const inviteUrl = `${APP_BASE_URL}/invite/${inviteToken}`;
+    const requestedServices = handlerRequest.services
+      .filter((s) => s.status !== "NOT_REQUIRED")
+      .map((s) => s.type);
     const send = await sendHandlerInvite(handler.email, {
       handlerName: handler.name,
       operatorName: flight.operator.name,
@@ -91,7 +131,7 @@ export async function inviteHandlerAction(formData: FormData) {
         pax: flight.pax,
       },
       airport,
-      services: handlerRequest.services.map((s) => s.type),
+      services: requestedServices,
       inviteUrl,
     });
     if (!send.ok) {
@@ -160,7 +200,9 @@ export async function createAndInviteHandlerAction(formData: FormData) {
     },
   });
 
-  // 2) Create the HandlerRequest + service requests
+  // 2) Create the HandlerRequest + service requests, honoring the operator's
+  // pre-invite checkboxes/notes (services unchecked become NOT_REQUIRED).
+  const serviceCreates = buildServiceCreates(formData);
   const inviteToken = generateInviteToken();
   const handlerRequest = await db.handlerRequest.create({
     data: {
@@ -170,15 +212,22 @@ export async function createAndInviteHandlerAction(formData: FormData) {
       inviteToken,
       inviteExpiresAt: inviteExpiryDate(),
       services: {
-        create: DEFAULT_SERVICE_TYPES.map((t) => ({ type: t })),
+        create: serviceCreates.map((s) => ({
+          type: s.type,
+          status: s.status,
+          note: s.note,
+        })),
       },
     },
     include: { services: true },
   });
 
-  // 3) Best-effort email
+  // 3) Best-effort email — only list services the handler should act on.
   if (handler.email) {
     const inviteUrl = `${APP_BASE_URL}/invite/${inviteToken}`;
+    const requestedServices = handlerRequest.services
+      .filter((s) => s.status !== "NOT_REQUIRED")
+      .map((s) => s.type);
     const send = await sendHandlerInvite(handler.email, {
       handlerName: handler.name,
       operatorName: flight.operator.name,
@@ -191,7 +240,7 @@ export async function createAndInviteHandlerAction(formData: FormData) {
         pax: flight.pax,
       },
       airport,
-      services: handlerRequest.services.map((s) => s.type),
+      services: requestedServices,
       inviteUrl,
     });
     if (!send.ok) {
@@ -312,6 +361,86 @@ export async function resendHandlerInviteAction(formData: FormData) {
   }
 
   revalidatePath(`/app/flights/${flightId}`);
+  return { error: null };
+}
+
+/**
+ * Operator-side "edit any service status" action. Unlike the handler path
+ * (which is forward-only via ALLOWED_TRANSITIONS), the operator gets free
+ * any-to-any transitions — they can flip a COMPLETED back to PENDING if a
+ * handler over-claimed, or mark a service NOT_REQUIRED at any time.
+ *
+ * The change is logged to ServiceStatusLog with the operator's user id and
+ * the note text at the moment of the change. Operators are then notified
+ * (the existing notify path will email any other operators not viewing).
+ */
+const operatorUpdateSchema = z.object({
+  flightId: z.string(),
+  serviceRequestId: z.string(),
+  toStatus: z.enum([
+    "PENDING",
+    "ACKNOWLEDGED",
+    "IN_PROGRESS",
+    "COMPLETED",
+    "NOT_REQUIRED",
+  ]),
+  note: z.string().max(500).optional().or(z.literal("")),
+});
+
+export async function operatorUpdateServiceStatusAction(formData: FormData) {
+  const user = await requireOperator();
+  const parsed = operatorUpdateSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Invalid input" };
+  const { flightId, serviceRequestId, toStatus, note } = parsed.data;
+
+  // Multi-tenant: confirm flight + service belong to this operator
+  const service = await db.serviceRequest.findFirst({
+    where: {
+      id: serviceRequestId,
+      handlerRequest: {
+        flightId,
+        flight: { operatorId: user.operatorId },
+      },
+    },
+    include: { handlerRequest: true },
+  });
+  if (!service) return { error: "Service not found" };
+
+  const oldStatus = service.status;
+  const newNote = note?.trim() || null;
+
+  await db.$transaction([
+    db.serviceRequest.update({
+      where: { id: serviceRequestId },
+      data: { status: toStatus, note: newNote },
+    }),
+    db.serviceStatusLog.create({
+      data: {
+        serviceRequestId,
+        fromStatus: oldStatus,
+        toStatus,
+        changedByUserId: user.id,
+        note: newNote,
+      },
+    }),
+  ]);
+
+  revalidatePath(`/app/flights/${flightId}`);
+  revalidatePath(`/app/hub/${flightId}`);
+  revalidatePath(`/app/schedule/${flightId}`);
+
+  // Best-effort: notify other operators who aren't actively viewing.
+  try {
+    await notifyServiceStatusChanged({
+      serviceRequestId,
+      oldStatus,
+      newStatus: toStatus,
+      changedByUserId: user.id,
+    });
+  } catch (e) {
+    console.error("[notify:service:operator] orchestrator failed:", e);
+  }
+
   return { error: null };
 }
 

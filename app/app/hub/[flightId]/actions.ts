@@ -25,14 +25,23 @@ export async function updateServiceStatusAction(formData: FormData) {
   });
   if (!service) return { error: "Service not found" };
   if (service.handlerRequest.handlerId !== user.handlerId) return { error: "Forbidden" };
-  if (!canTransition(service.status as ServiceStatus, toStatus as ServiceStatus)) return { error: "Invalid transition" };
+  // Handlers cannot move out of NOT_REQUIRED — only operators can change those.
+  // canTransition() already returns an empty list from NOT_REQUIRED, so this
+  // is technically redundant, but the explicit message helps debugging.
+  if (service.status === "NOT_REQUIRED") {
+    return { error: "This service is marked Not required by the operator." };
+  }
+  if (!canTransition(service.status as ServiceStatus, toStatus as ServiceStatus)) {
+    return { error: "Invalid transition" };
+  }
 
   const oldStatus = service.status;
+  const newNote = note?.trim() || service.note;
 
   await db.$transaction([
     db.serviceRequest.update({
       where: { id: serviceRequestId },
-      data: { status: toStatus, note: note || service.note },
+      data: { status: toStatus, note: newNote },
     }),
     db.serviceStatusLog.create({
       data: {
@@ -40,6 +49,7 @@ export async function updateServiceStatusAction(formData: FormData) {
         fromStatus: oldStatus,
         toStatus,
         changedByUserId: user.id,
+        note: newNote,
       },
     }),
   ]);

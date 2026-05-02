@@ -40,6 +40,7 @@ enum ServiceStatus {
   ACKNOWLEDGED
   IN_PROGRESS
   COMPLETED
+  NOT_REQUIRED
 }
 
 model Operator {
@@ -199,6 +200,9 @@ model ServiceStatusLog {
   changedAt         DateTime       @default(now())
   changedByUserId   String
   changedBy         User           @relation(fields: [changedByUserId], references: [id])
+  // Note captured at the moment of change (operator or handler-supplied).
+  // Optional; null means no note was attached to this transition.
+  note              String?
 
   @@index([serviceRequestId])
 }

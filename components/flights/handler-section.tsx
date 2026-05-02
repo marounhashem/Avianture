@@ -4,9 +4,11 @@ import {
   resendHandlerInviteAction,
   cancelHandlerInviteAction,
   createAndInviteHandlerAction,
+  operatorUpdateServiceStatusAction,
 } from "@/app/app/flights/[id]/actions";
 import { StatusChip } from "@/components/shared/status-chip";
 import { CopyButton } from "@/components/shared/copy-button";
+import { DEFAULT_SERVICE_TYPES } from "@/lib/flights/services";
 import type { Handler, HandlerRequest, ServiceRequest } from "@prisma/client";
 
 type RequestWithServices = HandlerRequest & {
@@ -108,23 +110,13 @@ export function HandlerSection({
                   </div>
                 </>
               )}
-              <div className="flex flex-wrap gap-1.5">
+              <div className="space-y-2">
                 {r.services.map((s) => (
-                  <span
+                  <OperatorServiceRow
                     key={s.id}
-                    className="inline-flex items-center gap-1.5 text-xs"
-                  >
-                    <span className="text-slate-400">{s.type}</span>
-                    <StatusChip
-                      status={
-                        s.status.toLowerCase() as
-                          | "pending"
-                          | "acknowledged"
-                          | "in_progress"
-                          | "completed"
-                      }
-                    />
-                  </span>
+                    flightId={flightId}
+                    service={s}
+                  />
                 ))}
               </div>
             </div>
@@ -150,6 +142,122 @@ export function HandlerSection({
   );
 }
 
+/**
+ * Operator-side inline edit row for a single ServiceRequest. Lets the
+ * operator change the status to anything (including NOT_REQUIRED) and
+ * attach an optional note. One small form per service.
+ */
+function OperatorServiceRow({
+  flightId,
+  service,
+}: {
+  flightId: string;
+  service: ServiceRequest;
+}) {
+  const isNotRequired = service.status === "NOT_REQUIRED";
+  return (
+    <form
+      action={
+        operatorUpdateServiceStatusAction as unknown as (fd: FormData) => void
+      }
+      className="grid grid-cols-1 sm:grid-cols-[80px_140px_1fr_auto] items-center gap-2 rounded border border-navy-800 bg-navy-900/60 px-3 py-2"
+    >
+      <input type="hidden" name="flightId" value={flightId} />
+      <input type="hidden" name="serviceRequestId" value={service.id} />
+      <span
+        className={
+          "text-xs font-medium " +
+          (isNotRequired ? "text-slate-500" : "text-slate-300")
+        }
+      >
+        {service.type}
+      </span>
+      <select
+        name="toStatus"
+        defaultValue={service.status}
+        className="rounded border border-navy-700 bg-navy-950 px-2 py-1 text-xs"
+      >
+        <option value="PENDING">Pending</option>
+        <option value="ACKNOWLEDGED">Acknowledged</option>
+        <option value="IN_PROGRESS">In progress</option>
+        <option value="COMPLETED">Completed</option>
+        <option value="NOT_REQUIRED">Not required</option>
+      </select>
+      <input
+        name="note"
+        defaultValue={service.note ?? ""}
+        placeholder="Note (optional)"
+        maxLength={500}
+        className="rounded border border-navy-700 bg-navy-950 px-2 py-1 text-xs"
+      />
+      <div className="flex items-center gap-2 justify-end">
+        <StatusChip
+          status={
+            service.status.toLowerCase() as
+              | "pending"
+              | "acknowledged"
+              | "in_progress"
+              | "completed"
+              | "not_required"
+          }
+        />
+        <button
+          type="submit"
+          className="rounded-md bg-amber-500 px-2.5 py-1 text-xs font-medium text-navy-950 hover:bg-amber-400"
+        >
+          Save
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Six checkboxes (default checked) + per-service note inputs, posted as part
+ * of the same invite form. Unchecked services get created as NOT_REQUIRED so
+ * the handler doesn't see them as actionable. Notes save with the service.
+ *
+ * Field naming is read by buildServiceCreates() in actions.ts:
+ *   service-include-{TYPE}  (checkbox; absent when unchecked)
+ *   service-note-{TYPE}     (text input)
+ */
+function PreInviteServicesEditor() {
+  return (
+    <fieldset className="rounded-md border border-navy-700/70 bg-navy-950/60 px-3 py-2">
+      <legend className="px-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+        Services
+      </legend>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        {DEFAULT_SERVICE_TYPES.map((t) => (
+          <label
+            key={t}
+            className="grid grid-cols-[auto_70px_1fr] items-center gap-2 text-xs"
+          >
+            <input
+              type="checkbox"
+              name={`service-include-${t}`}
+              defaultChecked
+              className="h-3.5 w-3.5 rounded border-navy-600 bg-navy-900 text-amber-500 focus:ring-amber-500"
+            />
+            <span className="text-slate-300">{t}</span>
+            <input
+              type="text"
+              name={`service-note-${t}`}
+              placeholder="Note (optional)"
+              maxLength={500}
+              className="rounded border border-navy-700 bg-navy-900 px-2 py-1 text-xs"
+            />
+          </label>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[10px] text-slate-500">
+        Uncheck a service to mark it Not required for this flight — the handler
+        won&apos;t see it as actionable.
+      </p>
+    </fieldset>
+  );
+}
+
 function InvitePicker({
   flightId,
   icao,
@@ -164,13 +272,13 @@ function InvitePicker({
   return (
     <div className="space-y-2">
       {!showNewForm && (
-        <div className="flex items-center gap-2">
-          <form
-            action={inviteHandlerAction as unknown as (fd: FormData) => void}
-            className="flex flex-1 gap-2"
-          >
-            <input type="hidden" name="flightId" value={flightId} />
-            <input type="hidden" name="airport" value={icao} />
+        <form
+          action={inviteHandlerAction as unknown as (fd: FormData) => void}
+          className="space-y-2 rounded-md border border-navy-700 bg-navy-950 p-3"
+        >
+          <input type="hidden" name="flightId" value={flightId} />
+          <input type="hidden" name="airport" value={icao} />
+          <div className="flex items-center gap-2">
             <select
               name="handlerId"
               required
@@ -198,15 +306,16 @@ function InvitePicker({
             >
               Invite
             </button>
-          </form>
-          <Link
-            href={`/app/flights/${flightId}?newHandler=${icao}`}
-            className="rounded-md border border-navy-700 bg-navy-950 px-3 py-2 text-sm text-slate-300 hover:border-amber-500 whitespace-nowrap"
-            title={`Add a new handler for ${icao}`}
-          >
-            + New
-          </Link>
-        </div>
+            <Link
+              href={`/app/flights/${flightId}?newHandler=${icao}`}
+              className="rounded-md border border-navy-700 bg-navy-950 px-3 py-2 text-sm text-slate-300 hover:border-amber-500 whitespace-nowrap"
+              title={`Add a new handler for ${icao}`}
+            >
+              + New
+            </Link>
+          </div>
+          <PreInviteServicesEditor />
+        </form>
       )}
 
       {showNewForm && (
@@ -254,6 +363,7 @@ function InvitePicker({
               className="rounded-md border border-navy-700 bg-navy-950 px-3 py-2 text-sm"
             />
           </div>
+          <PreInviteServicesEditor />
           <p className="text-[11px] text-slate-500">
             Handler will be added to your roster and immediately invited for this
             flight.{" "}

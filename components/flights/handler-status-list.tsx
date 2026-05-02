@@ -38,6 +38,7 @@ export function HandlerStatusList({ requests }: { requests: RequestWithServices[
                           | "acknowledged"
                           | "in_progress"
                           | "completed"
+                          | "not_required"
                       }
                     />
                   </span>
