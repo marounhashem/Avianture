@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Plane, Users, Building2, LayoutDashboard, CircleUser, LogOut, CalendarDays, Home } from "lucide-react";
+import { Plane, Users, Building2, LayoutDashboard, CircleUser, LogOut, CalendarDays, Home, MessageSquare } from "lucide-react";
 
 type Item = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
@@ -11,6 +11,7 @@ const operatorItems: Item[] = [
   { href: "/app/flights",   label: "Flights",   icon: Plane },
   { href: "/app/crew",      label: "Crew",      icon: Users },
   { href: "/app/handlers",  label: "Handlers",  icon: Building2 },
+  { href: "/app/messages",  label: "Messages",  icon: MessageSquare },
 ];
 const handlerItems: Item[] = [
   { href: "/app/hub", label: "Handler Hub", icon: LayoutDashboard },

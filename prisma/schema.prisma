@@ -15,8 +15,8 @@ enum Role {
 
 enum CrewRole {
   PIC
-  FO
-  CABIN
+  SIC
+  FA
 }
 
 enum FlightStatus {
@@ -146,6 +146,7 @@ model Handler {
   name       String
   company    String?
   email      String?
+  phone      String?
   city       String?
   country    String?
   airports   String[]         @default([])

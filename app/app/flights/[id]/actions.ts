@@ -105,12 +105,28 @@ export async function inviteHandlerAction(formData: FormData) {
   return { error: null };
 }
 
+// E.164-style international phone — same shape as the standalone Handlers form.
+const PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
+
+const phoneSchema = z
+  .string()
+  .optional()
+  .or(z.literal(""))
+  .transform((v) => {
+    if (!v) return null;
+    const stripped = v.replace(/[\s\-()]/g, "");
+    return stripped === "" ? null : stripped;
+  })
+  .refine((v) => v === null || PHONE_REGEX.test(v), {
+    message: "Phone must be international format, e.g. +971555618832.",
+  });
+
 const createAndInviteSchema = z.object({
   flightId: z.string(),
   airport: z.string().min(2).max(10),
   name: z.string().min(2).max(80),
   email: z.string().email().optional().or(z.literal("")),
-  company: z.string().max(80).optional().or(z.literal("")),
+  phone: phoneSchema,
 });
 
 /**
@@ -125,7 +141,7 @@ export async function createAndInviteHandlerAction(formData: FormData) {
   if (!parsed.success) {
     return { error: "Invalid input" };
   }
-  const { flightId, airport, name, email, company } = parsed.data;
+  const { flightId, airport, name, email, phone } = parsed.data;
 
   const flight = await db.flight.findFirst({
     where: { id: flightId, operatorId: user.operatorId },
@@ -139,7 +155,7 @@ export async function createAndInviteHandlerAction(formData: FormData) {
       operatorId: user.operatorId,
       name,
       email: email || null,
-      company: company || null,
+      phone,
       airports: [airport.toUpperCase()],
     },
   });

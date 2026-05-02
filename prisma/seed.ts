@@ -39,8 +39,8 @@ async function main() {
 
   const crewData: { name: string; role: CrewRole }[] = [
     { name: "John Smith", role: "PIC" },
-    { name: "Sarah Khan", role: "FO" },
-    { name: "Nadia Chen", role: "CABIN" },
+    { name: "Sarah Khan", role: "SIC" },
+    { name: "Nadia Chen", role: "FA" },
   ];
   const crew = await Promise.all(
     crewData.map((c) => db.crewMember.create({ data: { ...c, operatorId: operator.id } })),

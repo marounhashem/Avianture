@@ -17,7 +17,7 @@ const VALID_STATUS: StatusFilter[] = [
   "completed",
   "cancelled",
 ];
-const VALID_ATTENTION = ["unread", "issues", "pending"] as const;
+const VALID_ATTENTION = ["messages", "requests", "assignments"] as const;
 
 function parseStatus(raw: string | undefined): StatusFilter {
   if (!raw) return "all";
@@ -73,6 +73,18 @@ export default async function FlightsPage({
     },
   }));
 
+  // Aggregate counts for filter chip badges (across ALL flights, not the filtered subset).
+  const totals = flightsWithBadges.reduce(
+    (acc, { badges }) => ({
+      messages: acc.messages + badges.unread,
+      // "requests" = pending handler requests
+      requests: acc.requests + badges.pending,
+      // "assignments" = open crew issues / unacknowledged assignments
+      assignments: acc.assignments + badges.issues,
+    }),
+    { messages: 0, requests: 0, assignments: 0 },
+  );
+
   // Apply filters
   const filtered = flightsWithBadges.filter(({ flight, badges }) => {
     // Search across tail + ICAO
@@ -84,9 +96,9 @@ export default async function FlightsPage({
     // Status
     if (status !== "all" && flight.status.toLowerCase() !== status) return false;
     // Attention
-    if (filter === "unread" && badges.unread === 0) return false;
-    if (filter === "issues" && badges.issues === 0) return false;
-    if (filter === "pending" && badges.pending === 0) return false;
+    if (filter === "messages" && badges.unread === 0) return false;
+    if (filter === "requests" && badges.pending === 0) return false;
+    if (filter === "assignments" && badges.issues === 0) return false;
     return true;
   });
 
@@ -112,6 +124,7 @@ export default async function FlightsPage({
         filter={filter}
         totalShown={filtered.length}
         totalAll={flights.length}
+        badges={totals}
       />
 
       {flights.length === 0 ? (

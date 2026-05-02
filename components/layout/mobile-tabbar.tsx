@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Plane, Users, Building2, LayoutDashboard, CircleUser, CalendarDays } from "lucide-react";
+import { Plane, Users, Building2, LayoutDashboard, CircleUser, CalendarDays, MessageSquare } from "lucide-react";
 
 export function MobileTabBar({ role }: { role: "OPERATOR" | "HANDLER" | "CREW" }) {
   const pathname = usePathname();
@@ -10,6 +10,7 @@ export function MobileTabBar({ role }: { role: "OPERATOR" | "HANDLER" | "CREW" }
     role === "OPERATOR"
       ? [
           { href: "/app/flights", label: "Flights", icon: Plane },
+          { href: "/app/messages", label: "Messages", icon: MessageSquare },
           { href: "/app/crew", label: "Crew", icon: Users },
           { href: "/app/handlers", label: "Handlers", icon: Building2 },
           { href: "/app/account", label: "Me", icon: CircleUser },
@@ -26,7 +27,10 @@ export function MobileTabBar({ role }: { role: "OPERATOR" | "HANDLER" | "CREW" }
 
   // Tailwind v4 doesn't compile dynamic classnames — use a literal map.
   const colsClass =
-    items.length === 4 ? "grid-cols-4" : items.length === 2 ? "grid-cols-2" : "grid-cols-1";
+    items.length === 5 ? "grid-cols-5"
+    : items.length === 4 ? "grid-cols-4"
+    : items.length === 2 ? "grid-cols-2"
+    : "grid-cols-1";
 
   return (
     <nav

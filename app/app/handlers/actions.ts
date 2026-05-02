@@ -25,10 +25,35 @@ function parseAirports(raw: string | null | undefined): string[] {
   return out;
 }
 
+/**
+ * E.164-style international phone validation.
+ * Accepts a leading +, then 8–15 digits. Spaces, dashes, and parentheses
+ * are tolerated in the input but stripped before validation/storage so the
+ * stored value is canonical.
+ */
+const PHONE_REGEX = /^\+[1-9]\d{7,14}$/;
+
+function normalizePhone(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const stripped = raw.replace(/[\s\-()]/g, "");
+  if (stripped === "") return null;
+  return stripped;
+}
+
+const phoneSchema = z
+  .string()
+  .optional()
+  .or(z.literal(""))
+  .transform((v) => normalizePhone(v ?? null))
+  .refine((v) => v === null || PHONE_REGEX.test(v), {
+    message:
+      "Phone must be international format, e.g. +971555618832 (8–15 digits after +).",
+  });
+
 const createSchema = z.object({
   name: z.string().min(2).max(80),
-  company: z.string().max(80).optional().or(z.literal("")),
   email: z.string().email().optional().or(z.literal("")),
+  phone: phoneSchema,
   city: z.string().max(80).optional().or(z.literal("")),
   country: z.string().max(80).optional().or(z.literal("")),
   airports: z.string().max(300).optional().or(z.literal("")),
@@ -37,14 +62,16 @@ const createSchema = z.object({
 export async function createHandlerAction(formData: FormData) {
   const user = await requireOperator();
   const parsed = createSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { error: "Invalid input" };
+  if (!parsed.success) {
+    redirect("/app/handlers?error=invalid-input");
+  }
   const d = parsed.data;
   await db.handler.create({
     data: {
       operatorId: user.operatorId,
       name: d.name,
-      company: d.company || null,
       email: d.email || null,
+      phone: d.phone,
       city: d.city || null,
       country: d.country || null,
       airports: parseAirports(d.airports),
@@ -57,8 +84,8 @@ export async function createHandlerAction(formData: FormData) {
 const updateSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(2).max(80),
-  company: z.string().max(80).optional().or(z.literal("")),
   email: z.string().email().optional().or(z.literal("")),
+  phone: phoneSchema,
   city: z.string().max(80).optional().or(z.literal("")),
   country: z.string().max(80).optional().or(z.literal("")),
   airports: z.string().max(300).optional().or(z.literal("")),
@@ -85,8 +112,8 @@ export async function updateHandlerAction(formData: FormData) {
     where: { id: d.id },
     data: {
       name: d.name,
-      company: d.company || null,
       email: d.email || null,
+      phone: d.phone,
       city: d.city || null,
       country: d.country || null,
       airports: parseAirports(d.airports),

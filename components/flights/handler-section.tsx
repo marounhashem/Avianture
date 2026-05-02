@@ -246,9 +246,11 @@ function InvitePicker({
               className="rounded-md border border-navy-700 bg-navy-950 px-3 py-2 text-sm"
             />
             <input
-              name="company"
-              maxLength={80}
-              placeholder="Company (optional)"
+              name="phone"
+              type="tel"
+              placeholder="Phone # (e.g. +971555618832)"
+              pattern="^\+[1-9][0-9\s\-()]{7,20}$"
+              title="International format with leading + (e.g. +971 55 561 8832)"
               className="rounded-md border border-navy-700 bg-navy-950 px-3 py-2 text-sm"
             />
           </div>

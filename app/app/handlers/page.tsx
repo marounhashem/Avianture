@@ -4,6 +4,40 @@ import { db } from "@/lib/db";
 import { createHandlerAction, updateHandlerAction } from "./actions";
 import { LocationFields } from "@/components/handlers/location-fields";
 
+/**
+ * Sort handlers with the two most-used pinned at the top, then the rest
+ * alphabetically by name. "Most used" is measured by the number of
+ * `HandlerRequest` rows referencing each handler — i.e. how many flights
+ * they've been booked on. Handlers with zero requests still get sorted
+ * alphabetically into the "rest" bucket.
+ */
+function pinTopThenAlphabetical<
+  T extends { id: string; name: string; _count: { requests: number } },
+>(handlers: T[]): T[] {
+  if (handlers.length <= 2) {
+    return [...handlers].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  // Find the two most-used. Tie-break alphabetically so order is stable.
+  const ranked = [...handlers].sort((a, b) => {
+    if (b._count.requests !== a._count.requests) {
+      return b._count.requests - a._count.requests;
+    }
+    return a.name.localeCompare(b.name);
+  });
+  // Only pin if the candidate actually has any requests; otherwise everyone
+  // is unused and we just go alphabetical.
+  const topHasRequests = ranked[0]._count.requests > 0;
+  if (!topHasRequests) {
+    return [...handlers].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  const pinned = ranked.slice(0, 2);
+  const pinnedIds = new Set(pinned.map((h) => h.id));
+  const rest = handlers
+    .filter((h) => !pinnedIds.has(h.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return [...pinned, ...rest];
+}
+
 export default async function HandlersPage({
   searchParams,
 }: {
@@ -14,12 +48,21 @@ export default async function HandlersPage({
 
   const handlers = await db.handler.findMany({
     where: { operatorId: user.operatorId },
-    orderBy: { name: "asc" },
+    include: { _count: { select: { requests: true } } },
   });
+
+  const ordered = pinTopThenAlphabetical(handlers);
+  // Only treat the top 2 as pinned when they actually have prior usage.
+  // Otherwise the list is purely alphabetical and no "Most used" tag shows.
+  const pinnedIds = new Set<string>();
+  if (ordered.length >= 2 && ordered[0]._count.requests > 0) {
+    pinnedIds.add(ordered[0].id);
+    pinnedIds.add(ordered[1].id);
+  }
 
   const errorText =
     error === "invalid-input"
-      ? "Some fields were invalid. Check and try again."
+      ? "Some fields were invalid — check the phone number format and try again."
       : error === "not-found"
         ? "That handler couldn't be found."
         : null;
@@ -42,8 +85,15 @@ export default async function HandlersPage({
         <h2 className="text-sm font-semibold text-slate-300">Add a handler</h2>
         <div className="grid gap-2 md:grid-cols-3">
           <Field name="name" label="Name" required placeholder="LCLK FBO Larnaca" />
-          <Field name="company" label="Company" placeholder="Cyprus Handling" />
           <Field name="email" label="Email" type="email" placeholder="ops@example.com" />
+          <Field
+            name="phone"
+            label="Phone #"
+            type="tel"
+            placeholder="+971555618832"
+            pattern="^\+[1-9][0-9\s\-()]{7,20}$"
+            title="International format with leading + (e.g. +971 55 561 8832)"
+          />
           {/* Country → City → Airports, all linked: city options filter by country, airport options filter by city */}
           <LocationFields />
         </div>
@@ -59,10 +109,11 @@ export default async function HandlersPage({
 
       {/* List */}
       <ul className="divide-y divide-navy-700 rounded-lg border border-navy-700 bg-navy-900">
-        {handlers.length === 0 && (
+        {ordered.length === 0 && (
           <li className="p-4 text-sm text-slate-500">No handlers yet.</li>
         )}
-        {handlers.map((h) => {
+        {ordered.map((h) => {
+          const isPinned = pinnedIds.has(h.id);
           if (edit === h.id) {
             // Inline edit form
             return (
@@ -77,15 +128,19 @@ export default async function HandlersPage({
                   <div className="grid gap-2 md:grid-cols-3">
                     <Field name="name" label="Name" required defaultValue={h.name} />
                     <Field
-                      name="company"
-                      label="Company"
-                      defaultValue={h.company ?? ""}
-                    />
-                    <Field
                       name="email"
                       label="Email"
                       type="email"
                       defaultValue={h.email ?? ""}
+                    />
+                    <Field
+                      name="phone"
+                      label="Phone #"
+                      type="tel"
+                      defaultValue={h.phone ?? ""}
+                      placeholder="+971555618832"
+                      pattern="^\+[1-9][0-9\s\-()]{7,20}$"
+                      title="International format with leading + (e.g. +971 55 561 8832)"
                     />
                     <LocationFields
                       defaultCountry={h.country ?? ""}
@@ -122,6 +177,14 @@ export default async function HandlersPage({
                     {h.company && (
                       <span className="text-xs text-slate-400">{h.company}</span>
                     )}
+                    {isPinned && (
+                      <span
+                        className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300"
+                        title={`Most used (${h._count.requests} flight${h._count.requests === 1 ? "" : "s"})`}
+                      >
+                        Most used
+                      </span>
+                    )}
                   </div>
                   {(h.city || h.country) && (
                     <div className="text-xs text-slate-400">
@@ -141,9 +204,12 @@ export default async function HandlersPage({
                     </div>
                   )}
                 </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
+                <div className="flex flex-col items-end gap-1 shrink-0">
                   {h.email && (
                     <span className="text-xs text-slate-400">{h.email}</span>
+                  )}
+                  {h.phone && (
+                    <span className="text-xs text-slate-400 font-mono">{h.phone}</span>
                   )}
                   <Link
                     href={`/app/handlers?edit=${h.id}`}
@@ -168,6 +234,8 @@ function Field({
   type,
   placeholder,
   defaultValue,
+  pattern,
+  title,
 }: {
   name: string;
   label: string;
@@ -175,6 +243,8 @@ function Field({
   type?: string;
   placeholder?: string;
   defaultValue?: string;
+  pattern?: string;
+  title?: string;
 }) {
   // The id needs to be unique per instance because the same Field is rendered
   // multiple times on the page (create form + each edit form).
@@ -195,6 +265,8 @@ function Field({
         required={required}
         placeholder={placeholder}
         defaultValue={defaultValue}
+        pattern={pattern}
+        title={title}
         autoComplete="off"
         className="w-full rounded-md border border-navy-700 bg-navy-950 px-3 py-2 text-sm outline-none focus:border-amber-500"
       />

@@ -4,7 +4,6 @@ import { requireAuth } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { lastSeenMap, computeUnread } from "@/lib/flights/views";
 import { StatCard } from "@/components/dashboard/stat-card";
-import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { FlightCard } from "@/components/flights/flight-card";
 import { Plane } from "lucide-react";
 
@@ -18,9 +17,8 @@ export default async function AppIndex() {
     redirect("/app/account");
   }
 
-  // Run all 3 independent queries in parallel — operator + flights + recentMessages
-  // don't depend on each other. lastSeenMap needs flight IDs so it has to wait.
-  const [operator, flights, recentMessages] = await Promise.all([
+  // Two independent queries in parallel.
+  const [operator, flights] = await Promise.all([
     db.operator.findUnique({ where: { id: user.operatorId } }),
     db.flight.findMany({
       where: { operatorId: user.operatorId },
@@ -32,36 +30,32 @@ export default async function AppIndex() {
       },
       orderBy: { etdUtc: "asc" },
     }),
-    db.flightMessage.findMany({
-      where: { flight: { operatorId: user.operatorId } },
-      include: {
-        author: true,
-        flight: { select: { id: true, tailNumber: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-    }),
   ]);
 
-  // lastSeenMap depends on the flight IDs, so it has to follow the parallel block.
+  // lastSeenMap depends on flight IDs.
   const seen = await lastSeenMap(
     user.id,
     flights.map((f) => f.id),
   );
 
-  // Aggregate stats from already-fetched flight data (no extra queries)
+  // Aggregate KPI counts from already-fetched flight data (no extra queries).
   let unread = 0;
-  let issues = 0;
-  let pending = 0;
+  let requestsCount = 0;
+  let assignmentsCount = 0;
   for (const f of flights) {
     unread += computeUnread(f.messages, seen.get(f.id));
-    issues += f.crewAssignments.filter(
+    // "Requests" = flight requests an operator/pilot makes to handlers that
+    // are still awaiting acknowledgement.
+    requestsCount += f.handlerRequests.filter((r) => !r.inviteAcceptedAt).length;
+    // "Assignments" = crew or handlers attached to a flight who haven't
+    // acknowledged their assignment yet.
+    assignmentsCount += f.crewAssignments.filter(
       (a) => a.issue && !a.issueResolvedAt,
     ).length;
-    pending += f.handlerRequests.filter((r) => !r.inviteAcceptedAt).length;
   }
 
-  // Upcoming flights (next 3, etd >= now)
+  // Upcoming flights: closest date first, capped at 3.
+  // (db query already orders by etdUtc asc; we just filter to future.)
   const now = new Date();
   const upcoming = flights.filter((f) => f.etdUtc >= now).slice(0, 3);
   const upcomingWithBadges = upcoming.map((f) => ({
@@ -92,29 +86,27 @@ export default async function AppIndex() {
 
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatCard
-          href="/app/flights"
+          href="/app/messages"
           emoji="💬"
           count={unread}
           label="Unread messages"
           tone="amber"
         />
         <StatCard
-          href="/app/flights"
+          href="/app/flights?filter=requests"
           emoji="⚠"
-          count={issues}
-          label="Open issues"
+          count={requestsCount}
+          label="Requests"
           tone="red"
         />
         <StatCard
-          href="/app/flights"
+          href="/app/flights?filter=assignments"
           emoji="⏳"
-          count={pending}
-          label="Pending invites"
+          count={assignmentsCount}
+          label="Assignments"
           tone="slate"
         />
       </section>
-
-      <RecentActivity messages={recentMessages} />
 
       <section>
         <div className="flex items-center justify-between mb-3">

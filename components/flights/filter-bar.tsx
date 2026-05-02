@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { Search } from "lucide-react";
 
 export type StatusFilter = "all" | "draft" | "active" | "completed" | "cancelled";
-export type AttentionFilter = "unread" | "issues" | "pending" | undefined;
+export type AttentionFilter = "messages" | "requests" | "assignments" | undefined;
 
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -15,9 +15,9 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
 
 const ATTENTION_OPTIONS: { value: AttentionFilter; label: string }[] = [
   { value: undefined, label: "All flights" },
-  { value: "unread", label: "💬 Has unread" },
-  { value: "issues", label: "⚠ Has issues" },
-  { value: "pending", label: "⏳ Pending invites" },
+  { value: "messages", label: "💬 Messages" },
+  { value: "requests", label: "⚠ Open Requests" },
+  { value: "assignments", label: "⏳ Pending Assignments" },
 ];
 
 function buildHref({
@@ -43,14 +43,26 @@ export function FilterBar({
   filter,
   totalShown,
   totalAll,
+  badges,
 }: {
   q: string;
   status: StatusFilter;
   filter: AttentionFilter;
   totalShown: number;
   totalAll: number;
+  /** Aggregate counts across all flights, used to show numeric badges on the
+   * attention chips so the user knows what's waiting before clicking. */
+  badges: { messages: number; requests: number; assignments: number };
 }) {
   const anyActive = !!q || status !== "all" || !!filter;
+
+  const badgeFor = (value: AttentionFilter): number | null => {
+    if (value === "messages") return badges.messages;
+    if (value === "requests") return badges.requests;
+    if (value === "assignments") return badges.assignments;
+    return null;
+  };
+
   return (
     <div className="space-y-3">
       <form
@@ -113,18 +125,31 @@ export function FilterBar({
             filter: opt.value,
           });
           const active = filter === opt.value;
+          const badge = badgeFor(opt.value);
           return (
             <Link
               key={opt.label}
               href={href}
               className={cn(
-                "rounded-full border px-3 py-1 text-xs",
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs",
                 active
                   ? "border-amber-500/60 bg-amber-500/10 text-amber-300"
                   : "border-navy-700 bg-navy-950 text-slate-400 hover:border-amber-500/40",
               )}
             >
-              {opt.label}
+              <span>{opt.label}</span>
+              {badge !== null && badge > 0 && (
+                <span
+                  className={cn(
+                    "inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-semibold",
+                    active
+                      ? "bg-amber-500/30 text-amber-200"
+                      : "bg-red-500/20 text-red-300",
+                  )}
+                >
+                  {badge}
+                </span>
+              )}
             </Link>
           );
         })}

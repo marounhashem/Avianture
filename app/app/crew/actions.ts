@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 
 const schema = z.object({
   name: z.string().min(2).max(80),
-  role: z.enum(["PIC", "FO", "CABIN"]),
+  role: z.enum(["PIC", "SIC", "FA"]),
 });
 
 export async function createCrewAction(formData: FormData) {
