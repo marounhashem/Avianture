@@ -18,7 +18,12 @@
  */
 import { PrismaClient } from "@prisma/client";
 
-const db = new PrismaClient();
+// Prefer DATABASE_PUBLIC_URL when present so this script works from a local
+// machine via `railway run`. Inside Railway's container DATABASE_URL is fine
+// (internal `.railway.internal` hostname), but locally that hostname won't
+// resolve — we have to use the TCP proxy URL Railway provides.
+const url = process.env.DATABASE_PUBLIC_URL ?? process.env.DATABASE_URL;
+const db = new PrismaClient({ datasources: { db: { url } } });
 
 async function main() {
   const requestedName = process.argv[2];
