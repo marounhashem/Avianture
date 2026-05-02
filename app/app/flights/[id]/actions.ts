@@ -118,7 +118,7 @@ const phoneSchema = z
     return stripped === "" ? null : stripped;
   })
   .refine((v) => v === null || PHONE_REGEX.test(v), {
-    message: "Phone must be international format, e.g. +971555618832.",
+    message: "Phone must be international format, e.g. +97155000000.",
   });
 
 const createAndInviteSchema = z.object({

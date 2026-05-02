@@ -47,7 +47,7 @@ const phoneSchema = z
   .transform((v) => normalizePhone(v ?? null))
   .refine((v) => v === null || PHONE_REGEX.test(v), {
     message:
-      "Phone must be international format, e.g. +971555618832 (8–15 digits after +).",
+      "Phone must be international format, e.g. +97155000000 (8–15 digits after +).",
   });
 
 const createSchema = z.object({

@@ -90,9 +90,9 @@ export default async function HandlersPage({
             name="phone"
             label="Phone #"
             type="tel"
-            placeholder="+971555618832"
+            placeholder="+97155000000"
             pattern="^\+[1-9][0-9\s\-()]{7,20}$"
-            title="International format with leading + (e.g. +971 55 561 8832)"
+            title="International format with leading + (e.g. +971 55 000 000)"
           />
           {/* Country → City → Airports, all linked: city options filter by country, airport options filter by city */}
           <LocationFields />
@@ -138,9 +138,9 @@ export default async function HandlersPage({
                       label="Phone #"
                       type="tel"
                       defaultValue={h.phone ?? ""}
-                      placeholder="+971555618832"
+                      placeholder="+97155000000"
                       pattern="^\+[1-9][0-9\s\-()]{7,20}$"
-                      title="International format with leading + (e.g. +971 55 561 8832)"
+                      title="International format with leading + (e.g. +971 55 000 000)"
                     />
                     <LocationFields
                       defaultCountry={h.country ?? ""}
